@@ -1,7 +1,15 @@
 path:
-  ckpt_path: "./output/ckpt/LJSpeech_ptaco2_ResidualEncoder"
-  log_path: "./output/log/LJSpeech_ptaco2_ResidualEncoder"
-  result_path: "./output/result/LJSpeech_ptaco2_ResidualEncoder"
+  ckpt_path: "./output/ckpt/LJSpeech_ptaco2_ResidualEncoder_"
+  log_path: "./output/log/LJSpeech_ptaco2_ResidualEncoder_"
+  result_path: "./output/result/LJSpeech_ptaco2_ResidualEncoder_"
+loss:
+  # gamma: 0.05
+  # warp: 128
+  # bandwidth: 60
+  # lambda: 100
+  kl_start: 6000
+  kl_end: 50000
+  kl_upper: 1.0
 optimizer:
   batch_size: 16
   betas: [0.9, 0.98]

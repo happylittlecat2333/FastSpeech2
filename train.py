@@ -41,7 +41,7 @@ def main(args, configs):
     model, optimizer = get_model(args, configs, device, train=True)
     model = nn.DataParallel(model)
     num_param = get_param_num(model)
-    Loss = FastSpeech2Loss(preprocess_config, model_config).to(device)
+    Loss = FastSpeech2Loss(preprocess_config, model_config, train_config).to(device)
     print("Number of FastSpeech2 Parameters:", num_param)
 
     # Load vocoder
@@ -82,7 +82,7 @@ def main(args, configs):
                 output = model(*(batch[2:]))
 
                 # Cal Loss
-                losses = Loss(batch, output)
+                losses = Loss(batch, output, step)
                 total_loss = losses[0]
 
                 # Backward
@@ -99,7 +99,7 @@ def main(args, configs):
                 if step % log_step == 0:
                     losses = [l.item() for l in losses]
                     message1 = "Step {}/{}, ".format(step, total_step)
-                    message2 = "Total Loss: {:.4f}, Mel Loss: {:.4f}, Mel PostNet Loss: {:.4f}, Pitch Loss: {:.4f}, Energy Loss: {:.4f}, Duration Loss: {:.4f}".format(
+                    message2 = "Total Loss: {:.4f}, Mel Loss: {:.4f}, Mel PostNet Loss: {:.4f}, Pitch Loss: {:.4f}, Energy Loss: {:.4f}, Duration Loss: {:.4f}, KL Loss: {:.4f}, Attention Loss: {:.4f}".format(
                         *losses
                     )
 

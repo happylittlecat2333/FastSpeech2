@@ -5,7 +5,7 @@ import torch.nn as nn
 class FastSpeech2Loss(nn.Module):
     """ FastSpeech2 Loss """
 
-    def __init__(self, preprocess_config, model_config):
+    def __init__(self, preprocess_config, model_config, train_config):
         super(FastSpeech2Loss, self).__init__()
         self.pitch_feature_level = preprocess_config["preprocessing"]["pitch"][
             "feature"
@@ -13,11 +13,22 @@ class FastSpeech2Loss(nn.Module):
         self.energy_feature_level = preprocess_config["preprocessing"]["energy"][
             "feature"
         ]
+        self.start = train_config["loss"]["kl_start"]
+        self.end = train_config["loss"]["kl_end"]
+        self.upper = train_config["loss"]["kl_upper"]
         self.mse_loss = nn.MSELoss()
         self.mae_loss = nn.L1Loss()
         self.guided_loss = GuidedAttentionLoss()
 
-    def forward(self, inputs, predictions):
+    def kl_anneal(self, step):
+        if step < self.start:
+            return .0
+        elif step >= self.end:
+            return self.upper
+        else:
+            return self.upper*((step - self.start) / (self.end - self.start))
+
+    def forward(self, inputs, predictions, step):
         (
             src_lens_targets,
             _,
@@ -86,11 +97,18 @@ class FastSpeech2Loss(nn.Module):
         energy_loss = self.mse_loss(energy_predictions, energy_targets)
         duration_loss = self.mse_loss(log_duration_predictions, log_duration_targets)
 
-        # Residual Attention Loss
+        # # KL Divergence Loss
+        # beta = torch.tensor(self.kl_anneal(step))
+        # log_vars, mus = log_vars.masked_select(src_masks.unsqueeze(-1)), mus.masked_select(src_masks.unsqueeze(-1))
+        # kl_loss = -0.5 * torch.sum(1 + log_vars - mus.pow(2) - log_vars.exp())
+        beta, kl_loss = torch.tensor([0.]), torch.tensor([0.], device=mus.device)
+
+        # # Residual Attention Loss
         # attn_loss = self.guided_loss(attns.transpose(-2, -1), src_lens_targets, mel_lens_targets)
+        attn_loss = torch.tensor([0.], device=attns.device)
 
         total_loss = (
-            mel_loss + postnet_mel_loss + duration_loss + pitch_loss + energy_loss# + attn_loss
+            mel_loss + postnet_mel_loss + duration_loss + pitch_loss + energy_loss# + beta * kl_loss + attn_loss
         )
 
         return (
@@ -100,6 +118,9 @@ class FastSpeech2Loss(nn.Module):
             pitch_loss,
             energy_loss,
             duration_loss,
+            kl_loss,
+            attn_loss,
+            beta,
         )
 
 
