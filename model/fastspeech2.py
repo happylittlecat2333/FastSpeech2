@@ -122,4 +122,7 @@ class FastSpeech2(nn.Module):
             mel_masks,
             src_lens,
             mel_lens,
+            mus,
+            log_vars,
+            attns,
         )

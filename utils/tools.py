@@ -130,14 +130,16 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
     ) as f:
         stats = json.load(f)
         stats = stats["pitch"] + stats["energy"][:2]
+    attn = predictions[12][0].detach() # [seq_len, mel_len]
 
     fig = plot_mel(
         [
             (mel_prediction.cpu().numpy(), pitch, energy),
             (mel_target.cpu().numpy(), pitch, energy),
+            (attn.cpu().numpy()),
         ],
         stats,
-        ["Synthetized Spectrogram", "Ground-Truth Spectrogram"],
+        ["Synthetized Spectrogram", "Ground-Truth Spectrogram", "Residual Alignment"],
     )
 
     if vocoder is not None:
@@ -223,41 +225,55 @@ def plot_mel(data, stats, titles):
         ax.set_facecolor("None")
         return ax
 
+    max_len = 0
     for i in range(len(data)):
-        mel, pitch, energy = data[i]
-        pitch = pitch * pitch_std + pitch_mean
-        axes[i][0].imshow(mel, origin="lower")
-        axes[i][0].set_aspect(2.5, adjustable="box")
-        axes[i][0].set_ylim(0, mel.shape[0])
-        axes[i][0].set_title(titles[i], fontsize="medium")
-        axes[i][0].tick_params(labelsize="x-small", left=False, labelleft=False)
-        axes[i][0].set_anchor("W")
+        if len(data[i]) == 3:
+            mel, pitch, energy = data[i]
+            pitch = pitch * pitch_std + pitch_mean
+            axes[i][0].imshow(mel, origin="lower")
+            axes[i][0].set_aspect(2.5, adjustable="box")
+            axes[i][0].set_ylim(0, mel.shape[0])
+            axes[i][0].set_title(titles[i], fontsize="medium")
+            axes[i][0].tick_params(labelsize="x-small", left=False, labelleft=False)
+            axes[i][0].set_anchor("W")
 
-        ax1 = add_axis(fig, axes[i][0])
-        ax1.plot(pitch, color="tomato")
-        ax1.set_xlim(0, mel.shape[1])
-        ax1.set_ylim(0, pitch_max)
-        ax1.set_ylabel("F0", color="tomato")
-        ax1.tick_params(
-            labelsize="x-small", colors="tomato", bottom=False, labelbottom=False
-        )
+            ax1 = add_axis(fig, axes[i][0])
+            ax1.plot(pitch, color="tomato")
+            ax1.set_xlim(0, mel.shape[1])
+            ax1.set_ylim(0, pitch_max)
+            ax1.set_ylabel("F0", color="tomato")
+            ax1.tick_params(
+                labelsize="x-small", colors="tomato", bottom=False, labelbottom=False
+            )
 
-        ax2 = add_axis(fig, axes[i][0])
-        ax2.plot(energy, color="darkviolet")
-        ax2.set_xlim(0, mel.shape[1])
-        ax2.set_ylim(energy_min, energy_max)
-        ax2.set_ylabel("Energy", color="darkviolet")
-        ax2.yaxis.set_label_position("right")
-        ax2.tick_params(
-            labelsize="x-small",
-            colors="darkviolet",
-            bottom=False,
-            labelbottom=False,
-            left=False,
-            labelleft=False,
-            right=True,
-            labelright=True,
-        )
+            ax2 = add_axis(fig, axes[i][0])
+            ax2.plot(energy, color="darkviolet")
+            ax2.set_xlim(0, mel.shape[1])
+            ax2.set_ylim(energy_min, energy_max)
+            ax2.set_ylabel("Energy", color="darkviolet")
+            ax2.yaxis.set_label_position("right")
+            ax2.tick_params(
+                labelsize="x-small",
+                colors="darkviolet",
+                bottom=False,
+                labelbottom=False,
+                left=False,
+                labelleft=False,
+                right=True,
+                labelright=True,
+            )
+            max_len = mel.shape[1]
+        else:
+            # Plot Alignment
+            im = axes[i][0].imshow(data[i], origin='lower', aspect='auto')
+            axes[i][0].set_xlabel('Decoder timestep')
+            axes[i][0].set_ylabel('Encoder timestep')
+            axes[i][0].set_xlim(0, max_len)
+            axes[i][0].set_title(titles[i], fontsize="medium")
+            axes[i][0].tick_params(labelsize="x-small")
+            axes[i][0].set_anchor("W")
+            fig.colorbar(im, ax=axes[i][0])
+            # fig.tight_layout()
 
     return fig
 
