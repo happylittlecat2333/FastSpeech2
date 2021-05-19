@@ -1,7 +1,7 @@
 ### ptaco2 ###
 model_size: 256
 n_mel_channels: 80
-speaker_embed_size: 64
+speaker_embed_size: 256
 
 text_encoder:
   encoder_hidden: 256
@@ -80,7 +80,7 @@ variance_embedding:
 #   n_style_token: 10
 #   attn_head: 4
 
-multi_speaker: False
+multi_speaker: True
 
 max_seq_len: 1000
 

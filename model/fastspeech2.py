@@ -19,6 +19,10 @@ class FastSpeech2(nn.Module):
         self.model_config = model_config
 
         self.encoder = TextEncoder(model_config)
+        self.residual_encoder = ResidualEncoder(model_config)
+        self.residual_encoder_linear = nn.Linear(
+            model_config["model_size"]+model_config["residual_encoder"]["bottleneck_size"],
+            model_config["model_size"])
         self.variance_adaptor = VarianceAdaptor(preprocess_config, model_config)
         self.decoder = Decoder(model_config)
         self.mel_linear = nn.Linear(
@@ -65,6 +69,15 @@ class FastSpeech2(nn.Module):
         )
 
         output = self.encoder(texts, src_masks)
+
+        if self.speaker_emb is not None:
+            speaker_embedding = self.speaker_emb(speakers)
+
+        res_output, attns, mus, log_vars = self.residual_encoder(
+            mels, output, mel_masks, src_masks, max_mel_len, max_src_len, speaker_embedding
+        )
+
+        output = self.residual_encoder_linear(torch.cat([output, res_output], dim=-1))
 
         if self.speaker_emb is not None:
             output = output + self.speaker_emb(speakers).unsqueeze(1).expand(
