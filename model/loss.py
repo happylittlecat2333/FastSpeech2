@@ -97,18 +97,15 @@ class FastSpeech2Loss(nn.Module):
         energy_loss = self.mse_loss(energy_predictions, energy_targets)
         duration_loss = self.mse_loss(log_duration_predictions, log_duration_targets)
 
-        # # KL Divergence Loss
-        # beta = torch.tensor(self.kl_anneal(step))
-        # log_vars, mus = log_vars.masked_select(src_masks.unsqueeze(-1)), mus.masked_select(src_masks.unsqueeze(-1))
-        # kl_loss = -0.5 * torch.sum(1 + log_vars - mus.pow(2) - log_vars.exp())
-        beta, kl_loss = torch.tensor([0.]), torch.tensor([0.], device=mus.device)
+        # KL Divergence Loss
+        beta = torch.tensor(self.kl_anneal(step))
+        kl_loss = -0.5 * torch.sum(1 + log_vars - mus.pow(2) - log_vars.exp())
 
-        # # Residual Attention Loss
-        # attn_loss = self.guided_loss(attns.transpose(-2, -1), src_lens_targets, mel_lens_targets)
-        attn_loss = torch.tensor([0.], device=attns.device)
+        # Residual Attention Loss
+        attn_loss = self.guided_loss(attns, mel_lens_targets, src_lens_targets)
 
         total_loss = (
-            mel_loss + postnet_mel_loss + duration_loss + pitch_loss + energy_loss# + beta * kl_loss + attn_loss
+            mel_loss + postnet_mel_loss + duration_loss + pitch_loss + energy_loss + beta * kl_loss + attn_loss
         )
 
         return (
