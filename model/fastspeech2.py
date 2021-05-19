@@ -9,6 +9,7 @@ from transformer import Encoder, Decoder, PostNet
 from .modules import VarianceAdaptor
 from utils.tools import get_mask_from_lengths
 
+from .modules_ptaco2 import TextEncoder, ResidualEncoder, DurationPredictor, LearnedUpsampling#, Decoder
 
 class FastSpeech2(nn.Module):
     """ FastSpeech2 """
