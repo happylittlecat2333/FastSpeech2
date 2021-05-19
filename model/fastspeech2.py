@@ -9,7 +9,7 @@ from transformer import Encoder, Decoder, PostNet
 from .modules import VarianceAdaptor
 from utils.tools import get_mask_from_lengths
 
-from .modules_ptaco2 import TextEncoder, ResidualEncoder, DurationPredictor, LearnedUpsampling#, Decoder
+from .modules_ptaco2 import TextEncoder, ResidualEncoder, DurationPredictor, LearnedUpsampling, Decoder
 
 class FastSpeech2(nn.Module):
     """ FastSpeech2 """
@@ -18,7 +18,7 @@ class FastSpeech2(nn.Module):
         super(FastSpeech2, self).__init__()
         self.model_config = model_config
 
-        self.encoder = Encoder(model_config)
+        self.encoder = TextEncoder(model_config)
         self.variance_adaptor = VarianceAdaptor(preprocess_config, model_config)
         self.decoder = Decoder(model_config)
         self.mel_linear = nn.Linear(
@@ -93,7 +93,8 @@ class FastSpeech2(nn.Module):
         )
 
         output, mel_masks = self.decoder(output, mel_masks)
-        output = self.mel_linear(output)
+        output = output[-1]
+        # output = self.mel_linear(output)
 
         postnet_output = self.postnet(output) + output
 
