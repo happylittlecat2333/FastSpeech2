@@ -19,6 +19,7 @@ class FastSpeech2Loss(nn.Module):
         self.mse_loss = nn.MSELoss()
         self.mae_loss = nn.L1Loss()
         self.guided_loss = GuidedAttentionLoss()
+        self.L = model_config["decoder"]["decoder_layer"]
 
     def kl_anneal(self, step):
         if step < self.start:
@@ -40,7 +41,7 @@ class FastSpeech2Loss(nn.Module):
             duration_targets,
         ) = inputs[4:]
         (
-            mel_predictions,
+            mel_iters,
             postnet_mel_predictions,
             pitch_predictions,
             energy_predictions,
@@ -84,13 +85,17 @@ class FastSpeech2Loss(nn.Module):
         log_duration_predictions = log_duration_predictions.masked_select(src_masks)
         log_duration_targets = log_duration_targets.masked_select(src_masks)
 
-        mel_predictions = mel_predictions.masked_select(mel_masks.unsqueeze(-1))
+        mel_predictions = mel_iters[-1].masked_select(mel_masks.unsqueeze(-1))
         postnet_mel_predictions = postnet_mel_predictions.masked_select(
             mel_masks.unsqueeze(-1)
         )
         mel_targets = mel_targets.masked_select(mel_masks.unsqueeze(-1))
 
-        mel_loss = self.mae_loss(mel_predictions, mel_targets)
+        # Iterative Loss Using Soft-DTW
+        mel_iter_loss = 0
+        for mel_iter in mel_iters:
+            mel_iter_loss += self.mae_loss(mel_iter.masked_select(mel_masks.unsqueeze(-1)), mel_targets)
+        mel_loss = mel_iter_loss / self.L
         postnet_mel_loss = self.mae_loss(postnet_mel_predictions, mel_targets)
 
         pitch_loss = self.mse_loss(pitch_predictions, pitch_targets)

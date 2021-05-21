@@ -106,10 +106,9 @@ class FastSpeech2(nn.Module):
         )
 
         output, mel_masks = self.decoder(output, mel_masks)
-        output = output[-1]
         # output = self.mel_linear(output)
 
-        postnet_output = self.postnet(output) + output
+        postnet_output = self.postnet(output[-1]) + output[-1]
 
         return (
             output,
