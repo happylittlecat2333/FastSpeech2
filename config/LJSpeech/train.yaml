@@ -1,7 +1,7 @@
 path:
-  ckpt_path: "./output/ckpt/LJSpeech_ptaco2_IterativeLoss_L1"
-  log_path: "./output/log/LJSpeech_ptaco2_IterativeLoss_L1"
-  result_path: "./output/result/LJSpeech_ptaco2_IterativeLoss_L1"
+  ckpt_path: "./output/ckpt/LJSpeech_ptaco2_LearnedUpsampling"
+  log_path: "./output/log/LJSpeech_ptaco2_LearnedUpsampling"
+  result_path: "./output/result/LJSpeech_ptaco2_LearnedUpsampling"
 loss:
   # gamma: 0.05
   # warp: 128

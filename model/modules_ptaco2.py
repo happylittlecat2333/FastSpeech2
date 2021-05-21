@@ -335,17 +335,20 @@ class LearnedUpsampling(nn.Module):
         self.linear_einsum = LinearNorm(dim_c, d_predictor) # A
         self.layer_norm = nn.LayerNorm(d_predictor)
 
-    def forward(self, log_duration, V, src_len, src_mask, max_src_len):
+    def forward(self, log_duration, V, src_len, src_mask, max_src_len, mel_len=None, mel_mask=None, max_mel_len=None):
 
         batch_size = log_duration.shape[0]
 
         # Log Duration Interpretation
-        log_duration = torch.clamp(log_duration, max=math.log(self.max_seq_len))
-        duration = torch.maximum(torch.exp(log_duration) - 1, torch.ones_like(log_duration)) # prior: at least 1 frame in total
-        mel_len = torch.round(duration.sum(-1)).type(torch.LongTensor).to(device)
-        mel_len = torch.clamp(mel_len, max=self.max_seq_len)
-        max_mel_len = mel_len.max().item()
-        mel_mask = get_mask_from_lengths(mel_len, max_mel_len)
+        if not self.training and mel_len is None:
+            log_duration = torch.clamp(log_duration, max=math.log(self.max_seq_len))
+            duration = torch.maximum(torch.exp(log_duration) - 1, torch.ones_like(log_duration)) # prior: at least 1 frame in total
+            mel_len = torch.round(duration.sum(-1)).type(torch.LongTensor).to(device)
+            mel_len = torch.clamp(mel_len, max=self.max_seq_len)
+            max_mel_len = mel_len.max().item()
+            mel_mask = get_mask_from_lengths(mel_len, max_mel_len)
+        else:
+            duration = log_duration # log_duration is the target duration signal in training
 
         # Prepare Attention Mask
         src_mask_ = src_mask.float().unsqueeze(-1) # [B, src_len, 1]

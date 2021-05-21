@@ -94,7 +94,10 @@ class FastSpeech2(nn.Module):
             mel_masks,
         ) = self.variance_adaptor(
             output,
+            src_lens,
             src_masks,
+            max_src_len,
+            mel_lens,
             mel_masks,
             max_mel_len,
             p_targets,

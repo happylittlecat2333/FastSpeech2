@@ -21,7 +21,8 @@ class VarianceAdaptor(nn.Module):
     def __init__(self, preprocess_config, model_config):
         super(VarianceAdaptor, self).__init__()
         self.duration_predictor = DurationPredictor(model_config)
-        self.length_regulator = LengthRegulator()
+        # self.length_regulator = LengthRegulator()
+        self.learned_upsampling = LearnedUpsampling(model_config)
         self.pitch_predictor = VariancePredictor(model_config)
         self.energy_predictor = VariancePredictor(model_config)
 
@@ -103,9 +104,12 @@ class VarianceAdaptor(nn.Module):
     def forward(
         self,
         x,
+        src_len,
         src_mask,
+        max_src_len,
+        mel_len=None,
         mel_mask=None,
-        max_len=None,
+        max_mel_len=None,
         pitch_target=None,
         energy_target=None,
         duration_target=None,
@@ -114,7 +118,7 @@ class VarianceAdaptor(nn.Module):
         d_control=1.0,
     ):
 
-        log_duration_prediction, _ = self.duration_predictor(x, src_mask)
+        log_duration_prediction, V = self.duration_predictor(x, src_mask)
         if self.pitch_feature_level == "phoneme_level":
             pitch_prediction, pitch_embedding = self.get_pitch_embedding(
                 x, pitch_target, src_mask, p_control
@@ -127,15 +131,19 @@ class VarianceAdaptor(nn.Module):
             x = x + energy_embedding
 
         if duration_target is not None:
-            x, mel_len = self.length_regulator(x, duration_target, max_len)
+            # x, mel_len = self.length_regulator(x, duration_target, max_mel_len)
+            x, _, mel_len = \
+                self.learned_upsampling(duration_target, V, src_len, src_mask, max_src_len, mel_len, mel_mask, max_mel_len)
             duration_rounded = duration_target
         else:
             duration_rounded = torch.clamp(
                 (torch.round(torch.exp(log_duration_prediction) - 1) * d_control),
                 min=0,
             )
-            x, mel_len = self.length_regulator(x, duration_rounded, max_len)
-            mel_mask = get_mask_from_lengths(mel_len)
+            # x, mel_len = self.length_regulator(x, duration_rounded, max_mel_len)
+            # mel_mask = get_mask_from_lengths(mel_len)
+            x, mel_mask, mel_len = \
+                self.learned_upsampling(duration_rounded, V, src_len, src_mask, max_src_len, mel_len, mel_mask, max_mel_len)
 
         if self.pitch_feature_level == "frame_level":
             pitch_prediction, pitch_embedding = self.get_pitch_embedding(
