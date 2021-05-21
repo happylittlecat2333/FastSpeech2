@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from utils.tools import get_mask_from_lengths, pad
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from .modules_ptaco2 import DurationPredictor, LearnedUpsampling
 
 
 class VarianceAdaptor(nn.Module):
@@ -19,7 +20,7 @@ class VarianceAdaptor(nn.Module):
 
     def __init__(self, preprocess_config, model_config):
         super(VarianceAdaptor, self).__init__()
-        self.duration_predictor = VariancePredictor(model_config)
+        self.duration_predictor = DurationPredictor(model_config)
         self.length_regulator = LengthRegulator()
         self.pitch_predictor = VariancePredictor(model_config)
         self.energy_predictor = VariancePredictor(model_config)
@@ -113,7 +114,7 @@ class VarianceAdaptor(nn.Module):
         d_control=1.0,
     ):
 
-        log_duration_prediction = self.duration_predictor(x, src_mask)
+        log_duration_prediction, _ = self.duration_predictor(x, src_mask)
         if self.pitch_feature_level == "phoneme_level":
             pitch_prediction, pitch_embedding = self.get_pitch_embedding(
                 x, pitch_target, src_mask, p_control

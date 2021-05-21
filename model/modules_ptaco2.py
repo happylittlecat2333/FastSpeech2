@@ -265,8 +265,11 @@ class DurationPredictor(nn.Module):
         dropout = config["duration_predictor"]["conv_dropout"]
         speaker_embed_size = config["speaker_embed_size"]
 
+        # self.input_linear = LinearNorm(
+        #     d_encoder_t + d_encoder_r + speaker_embed_size, d_predictor
+        # )
         self.input_linear = LinearNorm(
-            d_encoder_t + d_encoder_r + speaker_embed_size, d_predictor
+            d_predictor, d_predictor
         )
 
         self.convolution_stack = nn.ModuleList(
