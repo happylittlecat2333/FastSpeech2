@@ -18,7 +18,7 @@ class FastSpeech2Loss(nn.Module):
         self.upper = train_config["loss"]["kl_upper"]
         self.mse_loss = nn.MSELoss()
         self.mae_loss = nn.L1Loss()
-        self.L = model_config["decoder"]["decoder_layer"]
+        # self.L = model_config["decoder"]["decoder_layer"]
 
     def kl_anneal(self, step):
         if step < self.start:
@@ -52,7 +52,8 @@ class FastSpeech2Loss(nn.Module):
             _,
             mus,
             log_vars,
-            attns,
+            _,
+            _,
         ) = predictions
         src_masks = ~src_masks
         mel_masks = ~mel_masks
@@ -94,7 +95,7 @@ class FastSpeech2Loss(nn.Module):
         mel_iter_loss = 0
         for mel_iter in mel_iters:
             mel_iter_loss += self.mae_loss(mel_iter.masked_select(mel_masks.unsqueeze(-1)), mel_targets)
-        mel_loss = mel_iter_loss / self.L
+        mel_loss = mel_iter_loss / len(mel_iters)
         postnet_mel_loss = self.mae_loss(postnet_mel_predictions, mel_targets)
 
         pitch_loss = self.mse_loss(pitch_predictions, pitch_targets)

@@ -133,15 +133,17 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
         stats = json.load(f)
         stats = stats["pitch"] + stats["energy"][:2]
     attn = predictions[12][0].detach() # [seq_len, mel_len]
+    W = predictions[13][0].transpose(-2, -1).detach() # [seq_len, mel_len]
 
     fig = plot_mel(
         [
             (mel_prediction.cpu().numpy(), pitch, energy),
             (mel_target.cpu().numpy(), pitch, energy),
             (attn.cpu().numpy()),
+            (W.cpu().numpy()),
         ],
         stats,
-        ["Synthetized Spectrogram", "Ground-Truth Spectrogram", "Residual Alignment"],
+        ["Synthetized Spectrogram", "Ground-Truth Spectrogram", "Residual Alignment", "W"],
     )
 
     if vocoder is not None:

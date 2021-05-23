@@ -132,7 +132,7 @@ class VarianceAdaptor(nn.Module):
 
         if duration_target is not None:
             # x, mel_len = self.length_regulator(x, duration_target, max_mel_len)
-            x, _, mel_len = \
+            x, _, mel_len, W = \
                 self.learned_upsampling(duration_target, V, src_len, src_mask, max_src_len, mel_len, mel_mask, max_mel_len)
             duration_rounded = duration_target
         else:
@@ -142,7 +142,7 @@ class VarianceAdaptor(nn.Module):
             )
             # x, mel_len = self.length_regulator(x, duration_rounded, max_mel_len)
             # mel_mask = get_mask_from_lengths(mel_len)
-            x, mel_mask, mel_len = \
+            x, mel_mask, mel_len, W = \
                 self.learned_upsampling(duration_rounded, V, src_len, src_mask, max_src_len, mel_len, mel_mask, max_mel_len)
 
         if self.pitch_feature_level == "frame_level":
@@ -164,6 +164,7 @@ class VarianceAdaptor(nn.Module):
             duration_rounded,
             mel_len,
             mel_mask,
+            W,
         )
 
 

@@ -378,7 +378,7 @@ class LearnedUpsampling(nn.Module):
         upsampled_rep = self.layer_norm(upsampled_rep)
         upsampled_rep = upsampled_rep.masked_fill(mel_mask.unsqueeze(-1), 0)
 
-        return upsampled_rep, mel_mask, mel_len
+        return upsampled_rep, mel_mask, mel_len, W
 
 
 class Decoder(nn.Module):

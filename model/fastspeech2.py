@@ -92,6 +92,7 @@ class FastSpeech2(nn.Module):
             d_rounded,
             mel_lens,
             mel_masks,
+            Ws,
         ) = self.variance_adaptor(
             output,
             src_lens,
@@ -127,4 +128,5 @@ class FastSpeech2(nn.Module):
             mus,
             log_vars,
             attns,
+            Ws,
         )
