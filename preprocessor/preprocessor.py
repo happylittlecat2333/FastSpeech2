@@ -59,6 +59,8 @@ class Preprocessor:
         print("Processing Data ...")
         out = list()
         n_frames = 0
+        mel_min = float('inf')
+        mel_max = -float('inf')
         pitch_scaler = StandardScaler()
         energy_scaler = StandardScaler()
 
@@ -79,13 +81,17 @@ class Preprocessor:
                     if ret is None:
                         continue
                     else:
-                        info, pitch, energy, n = ret
+                        info, pitch, energy, n, m_min, m_max = ret
                     out.append(info)
 
                 if len(pitch) > 0:
                     pitch_scaler.partial_fit(pitch.reshape((-1, 1)))
                 if len(energy) > 0:
                     energy_scaler.partial_fit(energy.reshape((-1, 1)))
+                if mel_min > m_min:
+                    mel_min = m_min
+                if mel_max < m_max:
+                    mel_max = m_max
 
                 n_frames += n
 
@@ -129,6 +135,10 @@ class Preprocessor:
                     float(energy_max),
                     float(energy_mean),
                     float(energy_std),
+                ],
+                "mel": [
+                    float(mel_min),
+                    float(mel_max),
                 ],
             }
             f.write(json.dumps(stats))
@@ -248,6 +258,8 @@ class Preprocessor:
             self.remove_outlier(pitch),
             self.remove_outlier(energy),
             mel_spectrogram.shape[1],
+            np.min(mel_spectrogram),
+            np.max(mel_spectrogram),
         )
 
     def get_alignment(self, tier):

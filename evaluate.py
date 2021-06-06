@@ -1,5 +1,6 @@
 import argparse
 import os
+import json
 
 import torch
 import yaml
@@ -29,6 +30,11 @@ def evaluate(model, step, configs, logger=None, vocoder=None):
         shuffle=False,
         collate_fn=dataset.collate_fn,
     )
+    with open(
+            os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
+    ) as f:
+        stats = json.load(f)
+        mel_stats = stats["mel"]
 
     # Get loss function
     Loss = FastSpeech2Loss(preprocess_config, model_config, train_config).to(device)
@@ -37,7 +43,7 @@ def evaluate(model, step, configs, logger=None, vocoder=None):
     loss_sums = [0 for _ in range(9)]
     for batchs in loader:
         for batch in batchs:
-            batch = to_device(batch, device)
+            batch = to_device(batch, device, mel_stats)
             with torch.no_grad():
                 # Forward
                 output = model(*(batch[2:]))

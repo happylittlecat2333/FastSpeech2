@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def to_device(data, device):
+def to_device(data, device, mel_stats=None):
     if len(data) == 12:
         (
             ids,
@@ -36,6 +36,7 @@ def to_device(data, device):
         texts = torch.from_numpy(texts).long().to(device)
         src_lens = torch.from_numpy(src_lens).to(device)
         mels = torch.from_numpy(mels).float().to(device)
+        mels = mel_normalize(mels, *mel_stats)
         mel_lens = torch.from_numpy(mel_lens).to(device)
         pitches = torch.from_numpy(pitches).float().to(device)
         energies = torch.from_numpy(energies).to(device)
@@ -121,8 +122,13 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
     basename = targets[0][0]
     src_len = predictions[8][0].item()
     mel_len = predictions[9][0].item()
-    mel_target = targets[6][0, :mel_len].detach().transpose(0, 1)
-    mel_prediction = predictions[1][0, :mel_len].detach().transpose(0, 1)
+    with open(
+        os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
+    ) as f:
+        stats = json.load(f)
+        stats, mel_stats = stats["pitch"] + stats["energy"][:2], stats["mel"]
+    mel_target = mel_denormalize(targets[6][0, :mel_len], *mel_stats).detach().transpose(0, 1)
+    mel_prediction = mel_denormalize(predictions[1][0, :mel_len], *mel_stats).detach().transpose(0, 1)
     duration = targets[11][0, :src_len].detach().cpu().numpy()
     if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
         pitch = targets[9][0, :src_len].detach().cpu().numpy()
@@ -135,11 +141,6 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
     else:
         energy = targets[10][0, :mel_len].detach().cpu().numpy()
 
-    with open(
-        os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
-    ) as f:
-        stats = json.load(f)
-        stats = stats["pitch"] + stats["energy"][:2]
     attn = predictions[12][0].detach() # [seq_len, mel_len]
     W = predictions[13][0].transpose(-2, -1).detach() # [seq_len, mel_len]
 
@@ -182,7 +183,12 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
         basename = basenames[i]
         src_len = predictions[8][i].item()
         mel_len = predictions[9][i].item()
-        mel_prediction = predictions[1][i, :mel_len].detach().transpose(0, 1)
+        with open(
+            os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
+        ) as f:
+            stats = json.load(f)
+            stats, mel_stats = stats["pitch"] + stats["energy"][:2], stats["mel"]
+        mel_prediction = mel_denormalize(predictions[1][i, :mel_len], *mel_stats).detach().transpose(0, 1)
         duration = predictions[5][i, :src_len].detach().cpu().numpy()
         if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
             pitch = predictions[2][i, :src_len].detach().cpu().numpy()
@@ -194,12 +200,6 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
             energy = expand(energy, duration)
         else:
             energy = predictions[3][i, :mel_len].detach().cpu().numpy()
-
-        with open(
-            os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
-        ) as f:
-            stats = json.load(f)
-            stats = stats["pitch"] + stats["energy"][:2]
 
         fig = plot_mel(
             [
@@ -213,7 +213,7 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
 
     from .model import vocoder_infer
 
-    mel_predictions = predictions[1].transpose(1, 2)
+    mel_predictions = mel_denormalize(predictions[1], *mel_stats).masked_fill(predictions[3].unsqueeze(-1), 0.0).transpose(1, 2)
     lengths = predictions[9] * preprocess_config["preprocessing"]["stft"]["hop_length"]
     wav_predictions = vocoder_infer(
         mel_predictions, vocoder, model_config, preprocess_config, lengths=lengths

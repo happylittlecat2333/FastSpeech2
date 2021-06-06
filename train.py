@@ -1,5 +1,6 @@
 import argparse
 import os
+import json
 
 import torch
 import yaml
@@ -36,6 +37,11 @@ def main(args, configs):
         shuffle=True,
         collate_fn=dataset.collate_fn,
     )
+    with open(
+            os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
+    ) as f:
+        stats = json.load(f)
+        mel_stats = stats["mel"]
 
     # Prepare model
     model, optimizer = get_model(args, configs, device, train=True)
@@ -76,7 +82,7 @@ def main(args, configs):
         inner_bar = tqdm(total=len(loader), desc="Epoch {}".format(epoch), position=1)
         for batchs in loader:
             for batch in batchs:
-                batch = to_device(batch, device)
+                batch = to_device(batch, device, mel_stats)
 
                 # Forward
                 output = model(*(batch[2:]))
