@@ -108,6 +108,14 @@ def expand(values, durations):
     return np.array(out)
 
 
+def mel_normalize(mel, m_min, m_max):
+    return 2 * (mel - m_min)/(m_max-m_min) - 1
+
+
+def mel_denormalize(mel_norm, m_min, m_max):
+    return (m_max - m_min) * ((mel_norm)+1)/2 + m_min
+
+
 def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_config):
 
     basename = targets[0][0]
