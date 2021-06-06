@@ -1,13 +1,13 @@
 path:
-  ckpt_path: "./output/ckpt/LJSpeech_ptaco2_LearnedUpsampling_kl_no_guided_W_log_test2"
-  log_path: "./output/log/LJSpeech_ptaco2_LearnedUpsampling_kl_no_guided_W_log_test2"
-  result_path: "./output/result/LJSpeech_ptaco2_LearnedUpsampling_kl_no_guided_W_log_test2"
+  ckpt_path: "./output/ckpt/LJSpeech_ptaco2_LearnedUpsampling_kl_no_guided_W_log"
+  log_path: "./output/log/LJSpeech_ptaco2_LearnedUpsampling_kl_no_guided_W_log"
+  result_path: "./output/result/LJSpeech_ptaco2_LearnedUpsampling_kl_no_guided_W_log"
 loss:
   gamma: 0.05
   # warp: 128
   # bandwidth: 60
   # lambda: 100
-  kl_start: 5000
+  kl_start: 1000
   kl_end: 50000
   kl_upper: 0.0001
 optimizer:

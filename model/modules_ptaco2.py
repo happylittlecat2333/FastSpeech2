@@ -400,14 +400,14 @@ class Decoder(nn.Module):
             requires_grad=False,
         )
 
-        # self.self_attention_stack = nn.ModuleList(
-        #     [
-        #         MultiHeadAttention(
-        #             n_head_trans, d_decoder, d_k, d_v, dropout=dropout
-        #         )
-        #         for _ in range(n_layers)
-        #     ]
-        # )
+        self.self_attention_stack = nn.ModuleList(
+            [
+                MultiHeadAttention(
+                    n_head_trans, d_decoder, d_k, d_v, dropout=dropout
+                )
+                for _ in range(n_layers)
+            ]
+        )
 
         self.convolution_stack = nn.ModuleList(
             [
@@ -432,7 +432,7 @@ class Decoder(nn.Module):
         mel_iters = list()
         batch_size, max_len = x.shape[0], x.shape[1]
 
-        # slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
+        slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
 
         dec_output = x
 
@@ -449,11 +449,11 @@ class Decoder(nn.Module):
             ].expand(batch_size, -1, -1)
             mask = mask[:, :max_len]
 
-        # for i, (self_attn, conv, linear) in enumerate(zip(self.self_attention_stack, self.convolution_stack, self.mel_projection)):
-        for i, (conv, linear) in enumerate(zip(self.convolution_stack, self.mel_projection)):
-            # dec_output, _ = self_attn(
-            #     dec_output, dec_output, dec_output, mask=slf_attn_mask
-            # )
+        for i, (self_attn, conv, linear) in enumerate(zip(self.self_attention_stack, self.convolution_stack, self.mel_projection)):
+        # for i, (conv, linear) in enumerate(zip(self.convolution_stack, self.mel_projection)):
+            dec_output, _ = self_attn(
+                dec_output, dec_output, dec_output, mask=slf_attn_mask
+            )
             dec_output = dec_output.masked_fill(mask.unsqueeze(-1), 0)
             dec_output = torch.tanh(conv(
                 dec_output, mask=mask

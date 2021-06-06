@@ -242,7 +242,7 @@ def plot_mel(data, stats, titles):
             axes[i][0].set_anchor("W")
 
             ax1 = add_axis(fig, axes[i][0])
-            ax1.plot(pitch, color="tomato")
+            ax1.plot(pitch, color="tomato", linewidth=.7)
             ax1.set_xlim(0, mel.shape[1])
             ax1.set_ylim(0, pitch_max)
             ax1.set_ylabel("F0", color="tomato")
@@ -251,7 +251,7 @@ def plot_mel(data, stats, titles):
             )
 
             ax2 = add_axis(fig, axes[i][0])
-            ax2.plot(energy, color="darkviolet")
+            ax2.plot(energy, color="darkviolet", linewidth=.7)
             ax2.set_xlim(0, mel.shape[1])
             ax2.set_ylim(energy_min, energy_max)
             ax2.set_ylabel("Energy", color="darkviolet")

@@ -29,7 +29,7 @@ class FastSpeech2(nn.Module):
         #     model_config["transformer"]["decoder_hidden"],
         #     preprocess_config["preprocessing"]["mel"]["n_mel_channels"],
         # )
-        self.postnet = PostNet()
+        # self.postnet = PostNet()
 
         self.speaker_emb = None
         if model_config["multi_speaker"]:
@@ -112,11 +112,11 @@ class FastSpeech2(nn.Module):
         output, mel_masks = self.decoder(output, mel_masks)
         # output = self.mel_linear(output)
 
-        postnet_output = self.postnet(output[-1]) + output[-1]
+        # postnet_output = self.postnet(output[-1]) + output[-1]
 
         return (
             output,
-            postnet_output,
+            output[-1],
             p_predictions,
             e_predictions,
             log_d_predictions,
