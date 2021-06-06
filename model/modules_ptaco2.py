@@ -208,21 +208,13 @@ class ResidualEncoder(nn.Module):
             mu = log_var = torch.zeros([batch_size, max_src_len, self.d_latent], device=device)
             attn = None
         else:
-            max_len = mel.shape[1]
             speaker_embedding_m = speaker_embedding.unsqueeze(1).expand(
                 -1, max_mel_len, -1
             )
 
-            if not self.training and mel.shape[1] > self.max_seq_len:
-                position_enc = get_sinusoid_encoding_table(
-                    mel.shape[1], self.d_encoder
-                )[: mel.shape[1], :].unsqueeze(0).expand(batch_size, -1, -1).to(
-                    mel.device
-                )
-            else:
-                position_enc = self.position_enc[
-                    :, :max_len, :
-                ].expand(batch_size, -1, -1)
+            position_enc = self.position_enc[
+                :, :max_mel_len, :
+            ].expand(batch_size, -1, -1)
 
             enc_input = torch.cat([position_enc, speaker_embedding_m, mel], dim=-1)
             enc_output = self.input_linear(enc_input)
@@ -440,11 +432,7 @@ class Decoder(nn.Module):
         mel_iters = list()
         batch_size, max_len = x.shape[0], x.shape[1]
 
-        max_len = min(max_len, self.max_seq_len)
         # slf_attn_mask = mask.unsqueeze(1).expand(-1, max_len, -1)
-
-        mask = mask[:, :max_len]
-        # slf_attn_mask = slf_attn_mask[:, :, :max_len]
 
         dec_output = x
 
@@ -455,9 +443,11 @@ class Decoder(nn.Module):
                 x.device
             )
         else:
+            max_len = min(max_len, self.max_seq_len)
             dec_output = dec_output + self.position_enc[
                 :, :max_len, :
             ].expand(batch_size, -1, -1)
+            mask = mask[:, :max_len]
 
         # for i, (self_attn, conv, linear) in enumerate(zip(self.self_attention_stack, self.convolution_stack, self.mel_projection)):
         for i, (conv, linear) in enumerate(zip(self.convolution_stack, self.mel_projection)):

@@ -25,10 +25,10 @@ class FastSpeech2(nn.Module):
             model_config["model_size"])
         self.variance_adaptor = VarianceAdaptor(preprocess_config, model_config)
         self.decoder = Decoder(model_config)
-        self.mel_linear = nn.Linear(
-            model_config["transformer"]["decoder_hidden"],
-            preprocess_config["preprocessing"]["mel"]["n_mel_channels"],
-        )
+        # self.mel_linear = nn.Linear(
+        #     model_config["transformer"]["decoder_hidden"],
+        #     preprocess_config["preprocessing"]["mel"]["n_mel_channels"],
+        # )
         self.postnet = PostNet()
 
         self.speaker_emb = None

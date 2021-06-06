@@ -17,7 +17,7 @@ residual_encoder:
   encoder_hidden: 256
   conv_head: 8
   conv_layer: 5
-  conv_kernel_size: 17
+  conv_kernel_size: 7
   conv_dropout: 0.1
   latent_dim: 8
   bottleneck_size: 32
@@ -41,7 +41,7 @@ decoder:
   decoder_dropout: 0.1
   decoder_layer: 6
   conv_head: 8
-  conv_kernel_size: 17
+  conv_kernel_size: 7
   trans_head: 8
 
 variance_predictor:

@@ -45,6 +45,108 @@ class LinearNorm(nn.Module):
         return x
 
 
+# class LConvBlock(nn.Module):
+#     """Lightweight Convolution layer.
+
+#     This implementation is based on
+#     https://github.com/pytorch/fairseq/tree/master/fairseq
+
+#     Args:
+#         num_heads (int): the number of kernel of convolution
+#         d_model (int): the number of features
+#         dropout (float): dropout
+#         kernel_size (int): kernel size (length)
+#         use_kernel_mask (bool): Use causal mask or not for convolution kernel
+#         use_bias (bool): Use bias term or not.
+
+#     """
+
+#     def __init__(
+#         self,
+#         d_model,
+#         kernel_size,
+#         num_heads,
+#         dropout,
+#         use_kernel_mask=False,
+#         use_bias=False,
+#     ):
+#         """Construct Lightweight Convolution layer."""
+#         super(LConvBlock, self).__init__()
+
+#         assert d_model % num_heads == 0
+#         self.num_heads = num_heads
+#         self.use_kernel_mask = use_kernel_mask
+#         self.dropout = dropout
+#         self.kernel_size = kernel_size
+#         self.padding_size = int(kernel_size / 2)
+
+#         # linear -> GLU -> lightconv -> linear
+#         self.linear1 = nn.Linear(d_model, d_model * 2)
+#         self.linear2 = nn.Linear(d_model, d_model)
+#         self.act = nn.GLU()
+
+#         # lightconv related
+#         self.weight = nn.Parameter(
+#             torch.Tensor(self.num_heads, 1, kernel_size).uniform_(0, 1)
+#         )
+#         self.use_bias = use_bias
+#         if self.use_bias:
+#             self.bias = nn.Parameter(torch.Tensor(d_model))
+
+#         # mask of kernel
+#         kernel_mask0 = torch.zeros(self.num_heads, int(kernel_size / 2))
+#         kernel_mask1 = torch.ones(self.num_heads, int(kernel_size / 2 + 1))
+#         self.kernel_mask = torch.cat((kernel_mask1, kernel_mask0), dim=-1).unsqueeze(1)
+
+#     def forward(self, query, mask, key=None, value=None):
+#         """Forward of 'Lightweight Convolution'.
+
+#         This function takes query, key and value but uses only query.
+#         This is just for compatibility with self-attention layer (attention.py)
+
+#         Args:
+#             query (torch.Tensor): (batch, time1, d_model) input tensor
+#             key (torch.Tensor): (batch, time2, d_model) NOT USED
+#             value (torch.Tensor): (batch, time2, d_model) NOT USED
+#             mask (torch.Tensor): (batch, time1, time2) mask
+
+#         Return:
+#             x (torch.Tensor): (batch, time1, d_model) ouput
+
+#         """
+#         # linear -> GLU -> lightconv -> linear
+#         x = query
+#         B, T, C = x.size()
+#         H = self.num_heads
+
+#         # first liner layer
+#         x = self.linear1(x)
+
+#         # GLU activation
+#         x = self.act(x)
+
+#         # lightconv
+#         x = x.transpose(1, 2).contiguous().view(-1, H, T)  # B x C x T
+#         weight = F.dropout(self.weight, self.dropout, training=self.training)
+#         if self.use_kernel_mask:
+#             self.kernel_mask = self.kernel_mask.to(x.device)
+#             weight = weight.masked_fill(self.kernel_mask == 0.0, float("-inf"))
+#         weight = F.softmax(weight, dim=-1)
+#         x = F.conv1d(x, weight, padding=self.padding_size, groups=self.num_heads).view(
+#             B, C, T
+#         )
+#         if self.use_bias:
+#             x = x + self.bias.view(1, -1, 1)
+#         x = x.transpose(1, 2)  # B x T x C
+
+#         if mask is not None and not self.use_kernel_mask:
+#             x = x.masked_fill(mask.unsqueeze(2), 0)
+
+#         # second linear layer
+#         x = self.linear2(x)
+#         return x
+
+
 class LConvBlock(nn.Module):
     """ Lightweight Convolutional Block """
 
