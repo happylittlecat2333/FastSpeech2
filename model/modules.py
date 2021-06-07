@@ -118,7 +118,7 @@ class VarianceAdaptor(nn.Module):
         d_control=1.0,
     ):
 
-        log_duration_prediction, V = self.duration_predictor(x, src_mask)
+        duration_prediction, V = self.duration_predictor(x, src_mask)
         if self.pitch_feature_level == "phoneme_level":
             pitch_prediction, pitch_embedding = self.get_pitch_embedding(
                 x, pitch_target, src_mask, p_control
@@ -130,20 +130,11 @@ class VarianceAdaptor(nn.Module):
             )
             x = x + energy_embedding
 
-        if duration_target is not None:
-            # x, mel_len = self.length_regulator(x, duration_target, max_mel_len)
-            x, _, mel_len, W = \
-                self.learned_upsampling(duration_target, V, src_len, src_mask, max_src_len, mel_len, mel_mask, max_mel_len)
-            duration_rounded = duration_target
-        else:
-            duration_rounded = torch.clamp(
-                (torch.round(torch.exp(log_duration_prediction) - 1) * d_control),
-                min=0,
-            )
-            # x, mel_len = self.length_regulator(x, duration_rounded, max_mel_len)
-            # mel_mask = get_mask_from_lengths(mel_len)
-            x, mel_mask, mel_len, W = \
-                self.learned_upsampling(duration_rounded, V, src_len, src_mask, max_src_len, mel_len, mel_mask, max_mel_len)
+        duration_rounded = duration_prediction
+        # x, mel_len = self.length_regulator(x, duration_rounded, max_mel_len)
+        # mel_mask = get_mask_from_lengths(mel_len)
+        x, mel_mask, mel_len, W = \
+            self.learned_upsampling(duration_prediction, V, src_len, src_mask, max_src_len)
 
         if self.pitch_feature_level == "frame_level":
             pitch_prediction, pitch_embedding = self.get_pitch_embedding(
@@ -160,7 +151,7 @@ class VarianceAdaptor(nn.Module):
             x,
             pitch_prediction,
             energy_prediction,
-            log_duration_prediction,
+            duration_prediction,
             duration_rounded,
             mel_len,
             mel_mask,

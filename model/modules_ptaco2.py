@@ -283,12 +283,12 @@ class DurationPredictor(nn.Module):
                 V, mask=mask
             )
 
-        log_duration = F.softplus(self.projection(V))
+        duration = F.softplus(self.projection(V))
         if mask is not None:
-            log_duration = log_duration.masked_fill(mask.unsqueeze(-1), 0)
-        log_duration = log_duration.squeeze(-1)
+            duration = duration.masked_fill(mask.unsqueeze(-1), 0)
+        duration = duration.squeeze(-1)
 
-        return log_duration, V
+        return duration, V
 
 
 class LearnedUpsampling(nn.Module):
@@ -327,20 +327,15 @@ class LearnedUpsampling(nn.Module):
         self.linear_einsum = LinearNorm(dim_c, d_predictor) # A
         self.layer_norm = nn.LayerNorm(d_predictor)
 
-    def forward(self, log_duration, V, src_len, src_mask, max_src_len, mel_len=None, mel_mask=None, max_mel_len=None):
+    def forward(self, duration, V, src_len, src_mask, max_src_len):
 
-        batch_size = log_duration.shape[0]
+        batch_size = duration.shape[0]
 
-        # Log Duration Interpretation
-        if not self.training and mel_len is None:
-            log_duration = torch.clamp(log_duration, max=math.log(self.max_seq_len))
-            duration = torch.maximum(torch.exp(log_duration) - 1, torch.ones_like(log_duration)) # prior: at least 1 frame in total
-            mel_len = torch.round(duration.sum(-1)).type(torch.LongTensor).to(device)
-            mel_len = torch.clamp(mel_len, max=self.max_seq_len)
-            max_mel_len = mel_len.max().item()
-            mel_mask = get_mask_from_lengths(mel_len, max_mel_len)
-        else:
-            duration = log_duration # log_duration is the target duration signal in training
+        # Duration Interpretation
+        mel_len = torch.round(duration.sum(-1)).type(torch.LongTensor).to(device)
+        mel_len = torch.clamp(mel_len, max=self.max_seq_len)
+        max_mel_len = mel_len.max().item()
+        mel_mask = get_mask_from_lengths(mel_len, max_mel_len)
 
         # Prepare Attention Mask
         src_mask_ = src_mask.float().unsqueeze(-1) # [B, src_len, 1]

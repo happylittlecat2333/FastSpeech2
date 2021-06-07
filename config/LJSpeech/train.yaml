@@ -1,12 +1,12 @@
 path:
-  ckpt_path: "./output/ckpt/LJSpeech_ptaco2_sdtw_org_lr_0.1"
-  log_path: "./output/log/LJSpeech_ptaco2_sdtw_org_lr_0.1"
-  result_path: "./output/result/LJSpeech_ptaco2_sdtw_org_lr_0.1"
+  ckpt_path: "./output/ckpt/LJSpeech_ptaco2_sdtw_org_wo_d"
+  log_path: "./output/log/LJSpeech_ptaco2_sdtw_org_wo_d"
+  result_path: "./output/result/LJSpeech_ptaco2_sdtw_org_wo_d"
 loss:
   gamma: 0.05
   # warp: 128
   # bandwidth: 60
-  # lambda: 100
+  lambda: 100
   kl_start: 6000
   kl_end: 50000
   kl_upper: 0.0001
