@@ -1,13 +1,13 @@
 path:
-  ckpt_path: "./output/ckpt/LJSpeech_ptaco2_LearnedUpsampling_kl_no_guided_W_log_batch8_mel_norm"
-  log_path: "./output/log/LJSpeech_ptaco2_LearnedUpsampling_kl_no_guided_W_log_batch8_mel_norm"
-  result_path: "./output/result/LJSpeech_ptaco2_LearnedUpsampling_kl_no_guided_W_log_batch8_mel_norm"
+  ckpt_path: "./output/ckpt/LJSpeech_ptaco2_sdtw_org_lr_0.1"
+  log_path: "./output/log/LJSpeech_ptaco2_sdtw_org_lr_0.1"
+  result_path: "./output/result/LJSpeech_ptaco2_sdtw_org_lr_0.1"
 loss:
   gamma: 0.05
   # warp: 128
   # bandwidth: 60
   # lambda: 100
-  kl_start: 3000
+  kl_start: 6000
   kl_end: 50000
   kl_upper: 0.0001
 optimizer:
@@ -20,6 +20,7 @@ optimizer:
   warm_up_step: 10000
   anneal_steps: [300000, 400000, 500000]
   anneal_rate: 0.3
+  init_lr_factor: 0.1
 step:
   total_step: 900000
   log_step: 50

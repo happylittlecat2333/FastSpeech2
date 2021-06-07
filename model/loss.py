@@ -98,21 +98,21 @@ class FastSpeech2Loss(nn.Module):
 
         # Iterative Loss Using Soft-DTW
 
-        # L1 Loss
-        mel_iter_loss = 0
-        mel_targets = mel_targets.masked_select(mel_masks.unsqueeze(-1))
-        for mel_iter in mel_iters:
-            mel_iter_loss += self.mae_loss(mel_iter.masked_select(mel_masks.unsqueeze(-1)), mel_targets)
-        mel_loss = mel_iter_loss / len(mel_iters)
-
-        # ## sdtw Loss
-        # mel_iter_loss = torch.zeros_like(mel_lens_targets, dtype=mel_targets.dtype)
+        # ###### L1 Loss
+        # mel_iter_loss = 0
+        # mel_targets = mel_targets.masked_select(mel_masks.unsqueeze(-1))
         # for mel_iter in mel_iters:
-        #     mel_iter_loss += self.sdtw_loss(mel_iter, mel_targets)
-        # mel_loss = (mel_iter_loss / (len(mel_iters) * mel_lens_targets)).mean()
-        # print(mel_iter_loss.shape, (len(mel_iters) * mel_lens_targets).shape, (mel_iter_loss / (len(mel_iters) * mel_lens_targets)).shape)
-        # exit(0)
-        # postnet_mel_loss = self.mae_loss(postnet_mel_predictions, mel_targets)
+        #     mel_iter_loss += self.mae_loss(mel_iter.masked_select(mel_masks.unsqueeze(-1)), mel_targets)
+        # mel_loss = mel_iter_loss / len(mel_iters)
+
+        ###### sdtw Loss
+        mel_iter_loss = torch.zeros_like(mel_lens_targets, dtype=mel_targets.dtype)
+        for mel_iter in mel_iters:
+            mel_iter_loss += self.sdtw_loss(mel_iter, mel_targets)
+        mel_loss = (mel_iter_loss / (len(mel_iters) * mel_lens_targets)).mean()
+        ##### print(mel_iter_loss.shape, (len(mel_iters) * mel_lens_targets).shape, (mel_iter_loss / (len(mel_iters) * mel_lens_targets)).shape)
+        ##### exit(0)
+        ##### postnet_mel_loss = self.mae_loss(postnet_mel_predictions, mel_targets)
         postnet_mel_loss = torch.tensor([0.], device=mel_targets.device)
 
         pitch_loss = self.mse_loss(pitch_predictions, pitch_targets)
