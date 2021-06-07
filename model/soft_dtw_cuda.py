@@ -76,7 +76,7 @@ def compute_softdtw_cuda(D, gamma, warp, bandwidth, max_i, max_j, n_passes, R):
 
 # ----------------------------------------------------------------------------------------------------------------------
 @cuda.jit
-def compute_softdtw_backward_cuda(D, R, inv_gamma, warp, bandwidth, max_i, max_j, n_passes, E):
+def compute_softdtw_backward_cuda(D, R, inv_gamma, warp, bandwidth, max_i, max_j, n_passes, E, G):
     k = cuda.blockIdx.x
     tid = cuda.threadIdx.x
 
@@ -106,11 +106,23 @@ def compute_softdtw_backward_cuda(D, R, inv_gamma, warp, bandwidth, max_i, max_j
                 b = math.exp((R[k, i, j + 1] - R[k, i, j] - D[k, i, j] - warp) * inv_gamma)
                 c = math.exp((R[k, i + 1, j + 1] - R[k, i, j] - D[k, i, j]) * inv_gamma)
                 E[k, i, j] = E[k, i + 1, j] * a + E[k, i, j + 1] * b + E[k, i + 1, j + 1] * c
+                G[k, i, j] = E[k, i + 1, j] + E[k, i, j + 1] + E[k, i + 1, j + 1]
 
         # Wait for other threads in this block
         cuda.syncthreads()
 
 # ----------------------------------------------------------------------------------------------------------------------
+# def jacobean_product_manhattan(X, Y, Bt):
+#     '''
+#     jacobean_product_manhattan(X, Y, Bt):
+    
+#     Jacobean product of Manhattan distance matrix and alignment matrix.
+#     '''
+#     # print(X.shape, Y.shape, Bt.shape)
+    
+#     ones = torch.ones(Y.shape).to('cuda' if Bt.is_cuda else 'cpu')
+#     return torch.sign(X-Y) * ones.matmul(Bt)
+
 class _SoftDTWCUDA(Function):
     """
     CUDA implementation is inspired by the diagonal one proposed in https://ieeexplore.ieee.org/document/8400444:
@@ -118,7 +130,7 @@ class _SoftDTWCUDA(Function):
     """
 
     @staticmethod
-    def forward(ctx, X, D, gamma, warp, bandwidth):
+    def forward(ctx, X, Y, D, gamma, warp, bandwidth):
         dev = D.device
         dtype = D.dtype
         gamma = torch.cuda.FloatTensor([gamma])
@@ -146,14 +158,14 @@ class _SoftDTWCUDA(Function):
         compute_softdtw_cuda[B, threads_per_block](cuda.as_cuda_array(D_.detach()),
                                                    gamma.item(), warp.item(), bandwidth.item(), N, M, n_passes,
                                                    cuda.as_cuda_array(R))
-        ctx.save_for_backward(X, D, R, gamma, warp, bandwidth)
+        ctx.save_for_backward(X, Y, D, R, gamma, warp, bandwidth)
         return R[:, -2, -2]
 
     @staticmethod
     def backward(ctx, grad_output):
         dev = grad_output.device
         dtype = grad_output.dtype
-        X, D, R, gamma, warp, bandwidth = ctx.saved_tensors
+        X, Y, D, R, gamma, warp, bandwidth = ctx.saved_tensors
 
         B = D.shape[0]
         N = D.shape[1]
@@ -172,18 +184,21 @@ class _SoftDTWCUDA(Function):
         E = torch.zeros((B, N + 2, M + 2), dtype=dtype, device=dev)
         E[:, -1, -1] = 1
 
+        G = torch.zeros((B, N + 2, M + 2), dtype=dtype, device=dev)
+
         # Grid and block sizes are set same as done above for the forward() call
         compute_softdtw_backward_cuda[B, threads_per_block](cuda.as_cuda_array(D_),
                                                             cuda.as_cuda_array(R),
                                                             1.0 / gamma.item(), warp.item(), bandwidth.item(), N, M, n_passes,
-                                                            cuda.as_cuda_array(E))
-        E = E[:, 1:N + 1, 1:M + 1] # dR_D
+                                                            cuda.as_cuda_array(E),
+                                                            cuda.as_cuda_array(G))
+        G = G[:, 1:N + 1, 1:M + 1] # dR_D
 
         # Jacobian product for the gradient w.r.t. X
         # See https://github.com/lyprince/sdtw_pytorch/blob/e509ef56374c83817bcf303bff102ca9636a1efe/sdtw.py#L222
-        dR_X = E.matmul(torch.ones(B, M, H, dtype=dtype, device=dev)) * torch.sign(X)
+        dR_X = G.matmul(torch.ones(B, M, H, dtype=dtype, device=dev)) * torch.sign(X-Y)
 
-        return dR_X, None, None, None, None
+        return grad_output.view(-1, 1, 1).expand_as(dR_X) * dR_X, None, None, None, None, None
 
 # ----------------------------------------------------------------------------------------------------------------------
 #
@@ -367,12 +382,12 @@ class SoftDTW(torch.nn.Module):
             x = torch.cat([X, X, Y])
             y = torch.cat([Y, X, Y])
             D = self.dist_func(x, y)
-            out = func_dtw(X, D, self.gamma, self.warp, self.bandwidth)
+            out = func_dtw(X, Y, D, self.gamma, self.warp, self.bandwidth)
             out_xy, out_xx, out_yy = torch.split(out, X.shape[0])
             return out_xy - 1 / 2 * (out_xx + out_yy)
         else:
             D_xy = self.dist_func(X, Y)
-            return func_dtw(X, D_xy, self.gamma, self.warp, self.bandwidth)
+            return func_dtw(X, Y, D_xy, self.gamma, self.warp, self.bandwidth)
 
 # ----------------------------------------------------------------------------------------------------------------------
 def timed_run(a, b, sdtw):

@@ -1,7 +1,8 @@
 import torch
 import torch.nn as nn
 
-from .soft_dtw_cuda_org import SoftDTW
+# from .soft_dtw_cuda_org import SoftDTW
+from .soft_dtw_cuda import SoftDTW
 
 class FastSpeech2Loss(nn.Module):
     """ FastSpeech2 Loss """
@@ -22,7 +23,7 @@ class FastSpeech2Loss(nn.Module):
         self.sdtw_loss = SoftDTW(
             use_cuda=True,
             gamma=train_config["loss"]["gamma"],
-            # warp=train_config["loss"]["warp"],
+            warp=train_config["loss"]["warp"],
         )
         # self.L = model_config["decoder"]["decoder_layer"]
 
