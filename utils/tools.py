@@ -120,38 +120,26 @@ def mel_denormalize(mel_norm, m_min, m_max):
 def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_config):
 
     basename = targets[0][0]
-    src_len = predictions[8][0].item()
-    mel_len = predictions[9][0].item()
+    mel_len_target = targets[7][0].item()
+    mel_len_prediction = predictions[9][0].item()
     with open(
         os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
     ) as f:
         stats = json.load(f)
-        stats, mel_stats = stats["pitch"] + stats["energy"][:2], stats["mel"]
-    mel_target = mel_denormalize(targets[6][0, :mel_len], *mel_stats).detach().transpose(0, 1)
-    mel_prediction = mel_denormalize(predictions[1][0, :mel_len], *mel_stats).detach().transpose(0, 1)
-    duration = targets[11][0, :src_len].detach().cpu().numpy()
-    if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
-        pitch = targets[9][0, :src_len].detach().cpu().numpy()
-        pitch = expand(pitch, duration)
-    else:
-        pitch = targets[9][0, :mel_len].detach().cpu().numpy()
-    if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
-        energy = targets[10][0, :src_len].detach().cpu().numpy()
-        energy = expand(energy, duration)
-    else:
-        energy = targets[10][0, :mel_len].detach().cpu().numpy()
+        mel_stats = stats["mel"]
+    mel_target = mel_denormalize(targets[6][0, :mel_len_target], *mel_stats).detach().transpose(0, 1)
+    mel_prediction = mel_denormalize(predictions[1][0, :mel_len_prediction], *mel_stats).detach().transpose(0, 1)
 
     attn = predictions[12][0].detach() # [seq_len, mel_len]
     W = predictions[13][0].transpose(-2, -1).detach() # [seq_len, mel_len]
 
     fig = plot_mel(
         [
-            (mel_prediction.cpu().numpy(), pitch, energy),
-            (mel_target.cpu().numpy(), pitch, energy),
-            (attn.cpu().numpy()),
-            (W.cpu().numpy()),
+            mel_prediction.cpu().numpy(),
+            mel_target.cpu().numpy(),
+            attn.cpu().numpy(),
+            W.cpu().numpy()
         ],
-        stats,
         ["Synthetized Spectrogram", "Ground-Truth Spectrogram", "Residual Alignment", "W"],
     )
 
@@ -224,70 +212,48 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
         wavfile.write(os.path.join(path, "{}.wav".format(basename)), sampling_rate, wav)
 
 
-def plot_mel(data, stats, titles):
-    fig, axes = plt.subplots(len(data), 1, squeeze=False)
-    if titles is None:
-        titles = [None for i in range(len(data))]
-    pitch_min, pitch_max, pitch_mean, pitch_std, energy_min, energy_max = stats
-    pitch_min = pitch_min * pitch_std + pitch_mean
-    pitch_max = pitch_max * pitch_std + pitch_mean
+def plot_mel(data, titles):
+    assert len(data) >= 3, "data must be greater or equal to 2" 
+    if data[-2] is not None and data[-1] is not None:
+        fig, axes = plt.subplots(len(data), 1, squeeze=False)
+        if titles is None:
+            titles = [None for i in range(len(data))]
 
-    def add_axis(fig, old_ax):
-        ax = fig.add_axes(old_ax.get_position(), anchor="W")
-        ax.set_facecolor("None")
-        return ax
+        # Plot Mel Spectrogram
+        plot_(axes, data[:-2], titles)
 
-    max_len = 0
-    for i in range(len(data)):
-        if len(data[i]) == 3:
-            mel, pitch, energy = data[i]
-            pitch = pitch * pitch_std + pitch_mean
-            axes[i][0].imshow(mel, origin="lower")
-            axes[i][0].set_aspect(2.5, adjustable="box")
-            axes[i][0].set_ylim(0, mel.shape[0])
-            axes[i][0].set_title(titles[i], fontsize="medium")
-            axes[i][0].tick_params(labelsize="x-small", left=False, labelleft=False)
-            axes[i][0].set_anchor("W")
-
-            ax1 = add_axis(fig, axes[i][0])
-            ax1.plot(pitch, color="tomato", linewidth=.7)
-            ax1.set_xlim(0, mel.shape[1])
-            ax1.set_ylim(0, pitch_max)
-            ax1.set_ylabel("F0", color="tomato")
-            ax1.tick_params(
-                labelsize="x-small", colors="tomato", bottom=False, labelbottom=False
-            )
-
-            ax2 = add_axis(fig, axes[i][0])
-            ax2.plot(energy, color="darkviolet", linewidth=.7)
-            ax2.set_xlim(0, mel.shape[1])
-            ax2.set_ylim(energy_min, energy_max)
-            ax2.set_ylabel("Energy", color="darkviolet")
-            ax2.yaxis.set_label_position("right")
-            ax2.tick_params(
-                labelsize="x-small",
-                colors="darkviolet",
-                bottom=False,
-                labelbottom=False,
-                left=False,
-                labelleft=False,
-                right=True,
-                labelright=True,
-            )
-            max_len = mel.shape[1]
-        else:
-            # Plot Alignment
+        # Plot Alignment
+        xlims = [data[1].shape[1], data[0].shape[1]]
+        for i in range(-2, 0):
             im = axes[i][0].imshow(data[i], origin='lower', aspect='auto')
             axes[i][0].set_xlabel('Decoder timestep')
             axes[i][0].set_ylabel('Encoder timestep')
-            axes[i][0].set_xlim(0, max_len)
+            axes[i][0].set_xlim(0, xlims[i])
             axes[i][0].set_title(titles[i], fontsize="medium")
             axes[i][0].tick_params(labelsize="x-small")
             axes[i][0].set_anchor("W")
             fig.colorbar(im, ax=axes[i][0])
-            # fig.tight_layout()
+    else:
+        data = data[:-2]
+        fig, axes = plt.subplots(len(data), 1, squeeze=False)
+        if titles is None:
+            titles = [None for i in range(len(data))]
+
+        # Plot Mel Spectrogram
+        plot_(axes, data, titles)
 
     return fig
+
+
+def plot_(axes, data, titles):
+    for i in range(len(data)):
+        mel = data[i]
+        axes[i][0].imshow(mel, origin="lower")
+        axes[i][0].set_aspect(2.5, adjustable="box")
+        axes[i][0].set_ylim(0, mel.shape[0])
+        axes[i][0].set_title(titles[i], fontsize="medium")
+        axes[i][0].tick_params(labelsize="x-small", left=False, labelleft=False)
+        axes[i][0].set_anchor("W")
 
 
 def pad_1D(inputs, PAD=0):
