@@ -7,8 +7,8 @@ loss:
   # warp: 128
   # bandwidth: 60
   lambda: 100
-  kl_start: 6000
-  kl_end: 50000
+  kl_start: 30000
+  kl_end: 150000
   kl_upper: 0.0001
 optimizer:
   batch_size: 8
@@ -20,10 +20,10 @@ optimizer:
   warm_up_step: 10000
   anneal_steps: [300000, 400000, 500000]
   anneal_rate: 0.3
-  init_lr_factor: 0.01
+  init_lr_factor: 0.05
 step:
   total_step: 900000
-  log_step: 50
-  synth_step: 50
+  log_step: 100
+  synth_step: 500
   val_step: 1000
-  save_step: 100000
+  save_step: 30000
