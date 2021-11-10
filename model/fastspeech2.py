@@ -77,7 +77,7 @@ class FastSpeech2(nn.Module):
             mels, output, mel_masks, src_masks, max_mel_len, max_src_len, speaker_embedding
         )
 
-        output = self.residual_encoder_linear(torch.cat([output, res_output], dim=-1))
+        # output = self.residual_encoder_linear(torch.cat([output, res_output], dim=-1))
 
         if self.speaker_emb is not None:
             output = output + self.speaker_emb(speakers).unsqueeze(1).expand(
