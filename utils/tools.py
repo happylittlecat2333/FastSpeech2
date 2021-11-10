@@ -36,7 +36,7 @@ def to_device(data, device, mel_stats=None):
         texts = torch.from_numpy(texts).long().to(device)
         src_lens = torch.from_numpy(src_lens).to(device)
         mels = torch.from_numpy(mels).float().to(device)
-        mels = mel_normalize(mels, *mel_stats)
+        # mels = mel_normalize(mels, *mel_stats)
         mel_lens = torch.from_numpy(mel_lens).to(device)
         pitches = torch.from_numpy(pitches).float().to(device)
         energies = torch.from_numpy(energies).to(device)
@@ -127,8 +127,10 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
     ) as f:
         stats = json.load(f)
         stats, mel_stats = stats["pitch"] + stats["energy"][:2], stats["mel"]
-    mel_target = mel_denormalize(targets[6][0, :mel_len], *mel_stats).detach().transpose(0, 1)
-    mel_prediction = mel_denormalize(predictions[1][0, :mel_len], *mel_stats).detach().transpose(0, 1)
+    mel_target = targets[6][0, :mel_len].detach().transpose(0, 1)
+    mel_prediction = predictions[1][0, :mel_len].detach().transpose(0, 1)
+    # mel_target = mel_denormalize(targets[6][0, :mel_len], *mel_stats).detach().transpose(0, 1)
+    # mel_prediction = mel_denormalize(predictions[1][0, :mel_len], *mel_stats).detach().transpose(0, 1)
     duration = targets[11][0, :src_len].detach().cpu().numpy()
     if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
         pitch = targets[9][0, :src_len].detach().cpu().numpy()
@@ -188,7 +190,8 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
         ) as f:
             stats = json.load(f)
             stats, mel_stats = stats["pitch"] + stats["energy"][:2], stats["mel"]
-        mel_prediction = mel_denormalize(predictions[1][i, :mel_len], *mel_stats).detach().transpose(0, 1)
+        mel_prediction = predictions[1][i, :mel_len].detach().transpose(0, 1)
+        # mel_prediction = mel_denormalize(predictions[1][i, :mel_len], *mel_stats).detach().transpose(0, 1)
         duration = predictions[5][i, :src_len].detach().cpu().numpy()
         if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
             pitch = predictions[2][i, :src_len].detach().cpu().numpy()
@@ -213,7 +216,8 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
 
     from .model import vocoder_infer
 
-    mel_predictions = mel_denormalize(predictions[1], *mel_stats).masked_fill(predictions[3].unsqueeze(-1), 0.0).transpose(1, 2)
+    mel_predictions = predictions[1].masked_fill(predictions[3].unsqueeze(-1), 0.0).transpose(1, 2)
+    # mel_predictions = mel_denormalize(predictions[1], *mel_stats).masked_fill(predictions[3].unsqueeze(-1), 0.0).transpose(1, 2)
     lengths = predictions[9] * preprocess_config["preprocessing"]["stft"]["hop_length"]
     wav_predictions = vocoder_infer(
         mel_predictions, vocoder, model_config, preprocess_config, lengths=lengths
