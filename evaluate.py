@@ -1,5 +1,6 @@
 import argparse
 import os
+import random
 
 import torch
 import yaml
@@ -7,7 +8,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from utils.model import get_model, get_vocoder
-from utils.tools import to_device, log, synth_one_sample
+from utils.tools import loss_list_to_dict, to_device, log, synth_one_sample
 from model import FastSpeech2Loss
 from dataset import Dataset
 
@@ -20,7 +21,7 @@ def evaluate(model, step, configs, logger=None, vocoder=None):
 
     # Get dataset
     dataset = Dataset(
-        "val.txt", preprocess_config, train_config, sort=False, drop_last=False
+        "val.txt", preprocess_config, model_config, train_config, sort=False, drop_last=False
     )
     batch_size = train_config["optimizer"]["batch_size"]
     loader = DataLoader(
@@ -31,10 +32,12 @@ def evaluate(model, step, configs, logger=None, vocoder=None):
     )
 
     # Get loss function
-    Loss = FastSpeech2Loss(preprocess_config, model_config).to(device)
+    Loss = FastSpeech2Loss(preprocess_config, model_config).to(device).eval()
 
     # Evaluation
-    loss_sums = [0 for _ in range(6)]
+    # loss_sums = [0 for _ in range(20)]
+    model.train()
+    loss_sums = []
     for batchs in loader:
         for batch in batchs:
             batch = to_device(batch, device)
@@ -46,42 +49,55 @@ def evaluate(model, step, configs, logger=None, vocoder=None):
                 losses = Loss(batch, output)
 
                 for i in range(len(losses)):
+                    if i >= len(loss_sums):
+                        loss_sums.append(0.)
                     loss_sums[i] += losses[i].item() * len(batch[0])
+                
 
     loss_means = [loss_sum / len(dataset) for loss_sum in loss_sums]
+    
 
-    message = "Validation Step {}, Total Loss: {:.4f}, Mel Loss: {:.4f}, Mel PostNet Loss: {:.4f}, Pitch Loss: {:.4f}, Energy Loss: {:.4f}, Duration Loss: {:.4f}".format(
-        *([step] + [l for l in loss_means])
-    )
+    loss_dict = loss_list_to_dict(loss_means)
+
+    message = ", ".join(["{}: {:.4f}".format(k, v) for k, v in loss_dict.items()])
+    message = "Validation Step {}, ".format(step) + message
+
+    # message = "Validation Step {}, Total Loss: {:.4f}, Mel Loss: {:.4f}, Mel PostNet Loss: {:.4f}, Pitch Loss: {:.4f}, Energy Loss: {:.4f}, Duration Loss: {:.4f}".format(
+    #     *([step] + [l for l in loss_means])
+    # )
 
     if logger is not None:
-        fig, wav_reconstruction, wav_prediction, tag = synth_one_sample(
-            batch,
-            output,
-            vocoder,
-            model_config,
-            preprocess_config,
-        )
+        for index in random.sample(range(0, len(batch)-1), 6):
 
-        log(logger, step, losses=loss_means)
-        log(
-            logger,
-            fig=fig,
-            tag="Validation/step_{}_{}".format(step, tag),
-        )
-        sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
-        log(
-            logger,
-            audio=wav_reconstruction,
-            sampling_rate=sampling_rate,
-            tag="Validation/step_{}_{}_reconstructed".format(step, tag),
-        )
-        log(
-            logger,
-            audio=wav_prediction,
-            sampling_rate=sampling_rate,
-            tag="Validation/step_{}_{}_synthesized".format(step, tag),
-        )
+            fig, wav_reconstruction, wav_prediction, tag = synth_one_sample(
+                batch,
+                output,
+                vocoder,
+                model_config,
+                preprocess_config,
+                index,
+            )
+
+            # log(logger, step, losses=loss_means)
+            log(logger, step, losses=loss_dict)
+            log(
+                logger,
+                fig=fig,
+                tag="Validation/step_{}_{}".format(step, tag),
+            )
+            sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
+            log(
+                logger,
+                audio=wav_reconstruction,
+                sampling_rate=sampling_rate,
+                tag="Validation/step_{}_{}_reconstructed".format(step, tag),
+            )
+            log(
+                logger,
+                audio=wav_prediction,
+                sampling_rate=sampling_rate,
+                tag="Validation/step_{}_{}_synthesized".format(step, tag),
+            )
 
     return message
 
@@ -89,7 +105,7 @@ def evaluate(model, step, configs, logger=None, vocoder=None):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--restore_step", type=int, default=30000)
+    parser.add_argument("--restore_step", type=int, default=0)
     parser.add_argument(
         "-p",
         "--preprocess_config",

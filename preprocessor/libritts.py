@@ -14,9 +14,13 @@ def prepare_align(config):
     sampling_rate = config["preprocessing"]["audio"]["sampling_rate"]
     max_wav_value = config["preprocessing"]["audio"]["max_wav_value"]
     cleaners = config["preprocessing"]["text"]["text_cleaners"]
+    filter_length = config["preprocessing"]["stft"]["filter_length"]
+    hop_length = config["preprocessing"]["stft"]["hop_length"]
+    emotion = "neutral"
+
     for speaker in tqdm(os.listdir(in_dir)):
-        for chapter in os.listdir(os.path.join(in_dir, speaker)):
-            for file_name in os.listdir(os.path.join(in_dir, speaker, chapter)):
+        for chapter in tqdm(os.listdir(os.path.join(in_dir, speaker))):
+            for file_name in tqdm(os.listdir(os.path.join(in_dir, speaker, chapter))):
                 if file_name[-4:] != ".wav":
                     continue
                 base_name = file_name[:-4]
@@ -32,14 +36,15 @@ def prepare_align(config):
 
                 os.makedirs(os.path.join(out_dir, speaker), exist_ok=True)
                 wav, _ = librosa.load(wav_path, sampling_rate)
+                wav, index = librosa.effects.trim(wav, frame_length=filter_length, hop_length=hop_length, top_db=60)
                 wav = wav / max(abs(wav)) * max_wav_value
                 wavfile.write(
-                    os.path.join(out_dir, speaker, "{}.wav".format(base_name)),
+                    os.path.join(out_dir, speaker, "{}_{}_{}.wav".format(speaker, emotion, base_name)),
                     sampling_rate,
                     wav.astype(np.int16),
                 )
                 with open(
-                    os.path.join(out_dir, speaker, "{}.lab".format(base_name)),
+                    os.path.join(out_dir, speaker, "{}_{}_{}.lab".format(speaker, emotion, base_name)),
                     "w",
                 ) as f1:
                     f1.write(text)

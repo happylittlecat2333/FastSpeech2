@@ -2,7 +2,7 @@ import argparse
 
 import yaml
 
-from preprocessor import ljspeech, aishell3, libritts
+from preprocessor import ljspeech, aishell3, libritts, emovdb, bc2013
 
 
 def main(config):
@@ -12,6 +12,11 @@ def main(config):
         aishell3.prepare_align(config)
     if "LibriTTS" in config["dataset"]:
         libritts.prepare_align(config)
+    if "EmovDB" in config["dataset"]:
+        emovdb.prepare_align(config)
+    if "bc2013" in config["dataset"]:
+        bc2013.prepare_align(config)
+        
 
 
 if __name__ == "__main__":

@@ -84,7 +84,7 @@ def preprocess_mandarin(text, preprocess_config):
     return np.array(sequence)
 
 
-def synthesize(model, step, configs, vocoder, batchs, control_values):
+def synthesize(model, step, configs, vocoder, batchs, control_values, args):
     preprocess_config, model_config, train_config = configs
     pitch_control, energy_control, duration_control = control_values
 
@@ -105,6 +105,7 @@ def synthesize(model, step, configs, vocoder, batchs, control_values):
                 model_config,
                 preprocess_config,
                 train_config["path"]["result_path"],
+                args,
             )
 
 
@@ -136,6 +137,12 @@ if __name__ == "__main__":
         type=int,
         default=0,
         help="speaker ID for multi-speaker synthesis, for single-sentence mode only",
+    )
+    parser.add_argument(
+        "--emotion_id",
+        type=int,
+        default=0,
+        help="emotion ID for multi-emotion synthesis, for single-sentence mode only",
     )
     parser.add_argument(
         "-p",
@@ -193,7 +200,7 @@ if __name__ == "__main__":
     # Preprocess texts
     if args.mode == "batch":
         # Get dataset
-        dataset = TextDataset(args.source, preprocess_config)
+        dataset = TextDataset(args.source, preprocess_config, model_config)
         batchs = DataLoader(
             dataset,
             batch_size=8,
@@ -212,3 +219,6 @@ if __name__ == "__main__":
     control_values = args.pitch_control, args.energy_control, args.duration_control
 
     synthesize(model, args.restore_step, configs, vocoder, batchs, control_values)
+
+
+#  python3 synthesize.py --restore_step 900000 --mode single -p config/EmovDB/preprocess.yaml -m config/EmovDB/model.yaml -t config/EmovDB/train.yaml --speaker_id 1 --text "吃葡萄不吐葡萄皮儿，不吃葡萄倒吐葡萄皮儿。"

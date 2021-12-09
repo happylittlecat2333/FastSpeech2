@@ -116,3 +116,9 @@ output/
 *.npy
 TextGrid/
 hifigan/*.pth.tar
+preprocessed_data/
+dump
+exp
+vocoder
+preprocessor/pretrained_models
+speaker_model/pretrained_models/

@@ -1,12 +1,13 @@
 dataset: "LibriTTS"
 
 path:
-  corpus_path: "/home/ming/Data/LibriTTS/train-clean-360"
+  corpus_path: "/home/samba/public/Datasets/Speech/LibrisTTS/LibriTTS/train-clean-360"
   lexicon_path: "lexicon/librispeech-lexicon.txt"
   raw_path: "./raw_data/LibriTTS"
   preprocessed_path: "./preprocessed_data/LibriTTS"
 
 preprocessing:
+  speaker_embedder: "ECAPA-TDNN"
   val_size: 512
   text:
     text_cleaners: ["english_cleaners"]
@@ -22,9 +23,13 @@ preprocessing:
     n_mel_channels: 80
     mel_fmin: 0
     mel_fmax: 8000 # please set to 8000 for HiFi-GAN vocoder, set to null for MelGAN vocoder
+    normalization: True
   pitch:
     feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
     normalization: True
   energy:
     feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
     normalization: True
+  duration:
+    beta_binomial_scaling_factor: 1.0
+

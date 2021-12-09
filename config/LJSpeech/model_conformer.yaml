@@ -1,0 +1,112 @@
+block_type: "conformer"
+external_speaker_dim: 512
+
+
+transformer:
+  encoder_layer: 4
+  encoder_head: 2
+  encoder_hidden: 256
+  decoder_layer: 6
+  decoder_head: 2
+  decoder_hidden: 256
+  conv_filter_size: 1024
+  conv_kernel_size: [9, 1]
+  encoder_dropout: 0.2
+  decoder_dropout: 0.2
+
+conformer:
+  encoder_layer: 4
+  encoder_head: 8
+  encoder_hidden: 256
+  decoder_layer: 6
+  decoder_head: 8
+  decoder_hidden: 256
+  feed_forward_expansion_factor: 4
+  conv_expansion_factor: 2
+  conv_kernel_size: 31
+  half_step_residual: True
+  encoder_dropout: 0.1
+  decoder_dropout: 0.1
+
+reformer:
+  depth: 6
+  encoder_head: 8
+  decoder_head: 
+
+variance_predictor:
+  filter_size: 256
+  kernel_size: 3
+  dropout: 0.5
+
+variance_embedding:
+  pitch_quantization: "linear" # support 'linear' or 'log', 'log' is allowed only if the pitch values are not normalized during preprocessing
+  energy_quantization: "linear" # support 'linear' or 'log', 'log' is allowed only if the energy values are not normalized during preprocessing
+  n_bins: 256
+
+gst:
+  conv_filters: [32, 32, 64, 64, 128, 128]
+  gru_hidden: 128
+  token_size: 128
+  n_style_token: 10
+  attn_head: 4
+
+speaker_embedding:
+  pretrained_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/speaker_model/pretrained_models/spkrec-ecapa-voxceleb/embedding_model.ckpt"
+  embedding_size: 256
+  embedding_model: 
+      input_size: 80
+      channels: [1024, 1024, 1024, 1024, 3072]
+      kernel_sizes: [5, 3, 3, 3, 1]
+      dilations: [1, 2, 3, 4, 1]
+      attention_channels: 128
+      lin_neurons: 192
+  
+emotion_token_layer:
+  ref_enc_filters: [32, 32, 64, 64, 128, 128]
+  ref_enc_size: [3, 3]
+  ref_enc_strides: [2, 2]
+  ref_enc_pad: [1, 1]
+  ref_enc_gru_size: 32
+  num_heads: 1 # only support 1
+
+vae:
+  hidden_size: 256
+  latent_size: 256
+
+speaker_classifier:
+  hidden_size: 256
+
+emotion_classifier:
+  hidden_size: 256
+
+Encoder_config:
+  use_speaker: False
+  use_emotion: False
+  use_speaker_classifier: False
+  use_emotion_classifier: False
+  # use_vae: False # not implemented yet
+  use_gst: False
+  use_revgrad: False
+
+Decoder_config:
+  use_speaker: False
+  use_emotion: False
+  use_speaker_classifier: False
+  use_emotion_classifier: False
+  # use_vae: False
+  use_gst: False
+  use_revgrad: False
+
+Loss_config:
+  use_orthogonal_loss: False
+  use_style_loss: False
+
+multi_speaker: False
+
+multi_emotion: False
+
+max_seq_len: 1000
+
+vocoder:
+  model: "HiFi-GAN" # support 'HiFi-GAN', 'MelGAN'
+  speaker: "LJSpeech" # support  'LJSpeech', 'universal'

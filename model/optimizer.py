@@ -4,7 +4,6 @@ import numpy as np
 
 class ScheduledOptim:
     """ A simple wrapper class for learning rate scheduling """
-
     def __init__(self, model, train_config, model_config, current_step):
 
         self._optimizer = torch.optim.Adam(
@@ -19,9 +18,9 @@ class ScheduledOptim:
         self.current_step = current_step
         self.init_lr = np.power(model_config["transformer"]["encoder_hidden"], -0.5)
 
-    def step_and_update_lr(self):
+    def step_and_update_lr(self, scaler):
         self._update_learning_rate()
-        self._optimizer.step()
+        scaler.step(self._optimizer)
 
     def zero_grad(self):
         # print(self.init_lr)
@@ -31,12 +30,10 @@ class ScheduledOptim:
         self._optimizer.load_state_dict(path)
 
     def _get_lr_scale(self):
-        lr = np.min(
-            [
-                np.power(self.current_step, -0.5),
-                np.power(self.n_warmup_steps, -1.5) * self.current_step,
-            ]
-        )
+        lr = np.min([
+            np.power(self.current_step, -0.5),
+            np.power(self.n_warmup_steps, -1.5) * self.current_step,
+        ])
         for s in self.anneal_steps:
             if self.current_step > s:
                 lr = lr * self.anneal_rate
