@@ -122,3 +122,4 @@ exp
 vocoder
 preprocessor/pretrained_models
 speaker_model/pretrained_models/
+lexicon/english.zip
