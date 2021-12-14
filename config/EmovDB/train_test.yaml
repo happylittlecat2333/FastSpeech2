@@ -4,13 +4,13 @@ dist_config:
   dist_url: "tcp://localhost:54321"
   world_size: 1
 path:
-  # ckpt_path: "./output/ckpt/LibriTTS"
-  # log_path: "./output/log/LibriTTS"
-  # result_path: "./output/result/LibriTTS"
-  ckpt_path: "./exp/LibriTTS/baseline/ckpt"
-  log_path: "./exp/LibriTTS/baseline/log"
-  result_path: "./exp/LibriTTS/baseline/result"
-  config_path: "./exp/LibriTTS/baseline/config"
+  # ckpt_path: "./output/ckpt/EmovDB/Baseline_v2"
+  # log_path: "./output/log/EmovDB/Baseline_v2"
+  # result_path: "./output/result/EmovDB/Baseline_v2"
+  ckpt_path: "./exp/EmovDB/test/ckpt"
+  log_path: "./exp/EmovDB/test/log"
+  result_path: "./exp/EmovDB/test/result"
+  config_path: "./exp/EmovDB/test/config"
 optimizer:
   batch_size: 16
   betas: [0.9, 0.98]
@@ -24,6 +24,6 @@ optimizer:
 step:
   total_step: 900000
   log_step: 100
-  synth_step: 5000
+  synth_step: 1000
   val_step: 1000
   save_step: 10000

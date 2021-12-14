@@ -5,7 +5,8 @@ import torch
 import numpy as np
 
 import hifigan
-from model import FastSpeech2, ScheduledOptim
+from model.fastspeech2 import FastSpeech2
+from model.optimizer import ScheduledOptim
 
 
 def get_model(args, configs, device, train=False):

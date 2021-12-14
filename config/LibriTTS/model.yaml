@@ -95,18 +95,18 @@ emotion_classifier:
   hidden_size: 256
 
 Encoder_config:
-  use_speaker: False
+  use_speaker: True
   use_emotion: False
-  use_speaker_classifier: False
+  use_speaker_classifier: True
   use_emotion_classifier: False
   # use_vae: False # not implemented yet
   use_gst: False
   use_revgrad: False
 
 Decoder_config:
-  use_speaker: False
+  use_speaker: True
   use_emotion: False
-  use_speaker_classifier: False
+  use_speaker_classifier: True
   use_emotion_classifier: False
   # use_vae: False
   use_gst: False

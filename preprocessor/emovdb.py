@@ -44,7 +44,8 @@ def prepare_align(config):
         if os.path.exists(wav_path):
             os.makedirs(os.path.join(out_dir, speaker), exist_ok=True)
             wav, _ = librosa.load(wav_path, sampling_rate)
-            wav, index = librosa.effects.trim(wav, frame_length=filter_length, hop_length=hop_length, top_db=30)
+            # wav, index = librosa.effects.trim(wav, frame_length=filter_length, hop_length=hop_length, top_db=30)
+            wav, index = librosa.effects.trim(wav, frame_length=filter_length, hop_length=hop_length, top_db=60)
             wav = wav / max(abs(wav)) * max_wav_value
             wavfile.write(
                 os.path.join(out_dir, speaker, "{}_{}_{}.wav".format(speaker, emotion, base_name)),

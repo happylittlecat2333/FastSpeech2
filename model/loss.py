@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from collections import defaultdict
 import model
+from collections import defaultdict
 
 from model.modules import StyleLoss, OrthogonalLoss
 
@@ -23,6 +24,9 @@ class FastSpeech2Loss(nn.Module):
         self.energy_feature_level = preprocess_config["preprocessing"]["energy"][
             "feature"
         ]
+        self.Encoder_config = self.model_config["Encoder_config"]
+        self.Decoder_config = self.model_config["Decoder_config"]
+        self.Loss_config = self.model_config["Loss_config"]
 
         self.mse_loss = nn.MSELoss()
         self.mae_loss = nn.L1Loss()
@@ -32,43 +36,51 @@ class FastSpeech2Loss(nn.Module):
 
 
     def forward(self, inputs, predictions):
-        (
-            ids,
-            raw_texts,
-            speakers,
-            emotions,
-            texts,
-            text_lens,
-            max_text_len,
-            mel_targets,
-            mel_lens,
-            max_mel_len,
-            pitch_targets,
-            energy_targets,
-            duration_targets,
-        ) = inputs
-        (
-            mel_predictions,
-            postnet_mel_predictions,
-            pitch_predictions,
-            energy_predictions,
-            log_duration_predictions,
-            _,
-            src_masks,
-            mel_masks,
-            _,
-            _,
-            speaker_emb_1,
-            speaker_emb_2,
-            emotion_emb_1,
-            emotion_emb_2,
-            emotion_classifier_1_output,
-            emotion_classifier_2_output,
-            speaker_classifier_1_output,
-            speaker_classifier_2_output,
-            emotion_classifier_1_revgrad_output,
-            emotion_classifier_2_revgrad_output
-        ) = predictions
+        """
+        Args:
+            inputs: defaultdict(lamda: None)
+                - texts: (B, max_src_len)
+                - mels: (B, max_mel_len, n_mel_channels)
+                - src_lens, mel_lens: (B, )
+                - max_src_len, max_mel_len: int
+                - speakers: (B, )
+                - emotions: (B, )
+                - pitches, energies, durations: (B, max_mel_len)
+                - speaker_embedding: (B, speaker_embedding_dim)
+            
+            predictions: defaultdict(lamda: None)
+                - output: (B, max_mel_len, n_mel_channels)
+                - postnet_output: (B, max_mel_len, n_mel_channels)
+                - src_lens, mel_lens: (B, )
+                - src_mask: (B, max_src_len)
+                - mel_mask: (B, max_mel_len)
+                - p_preds, e_preds, d_preds, d_rounded: (B, max_src_len)
+                - spk_emb_1, spk_emb_2: (B, speaker_embedding_dim)
+                - emo_emb_1, emo_emb_2: (B, emotion_embedding_dim)
+                - spk_cls_1_output, spk_cls_2_output: (B, n_speaker)
+                - emo_cls_1_output, emo_cls_2_output: (B, n_emotion)
+                - emo_cls_1_rev_output, emo_cls_2_rev_output: (B, n_emotion)
+
+        Returns:
+            Loss: defaultdict(lamda: torch.tensor(0.))
+                - mel_loss, postnet_mel_loss
+                - pitch_loss, energy_loss, duration_loss
+                - speaker_loss_1, speaker_loss_2
+                - emotion_loss_1, emotion_loss_2
+                - speaker_emotion_loss_1, speaker_emotion_loss_2
+                - emotion_style_loss
+                - loss_1 = *_loss_1
+                - loss_2 = * loss_1
+                - all_loss = mel_loss + postnet_mel_loss + pitch_loss + energy_loss + duration_loss
+                - total_loss = all_loss + loss_1 + loss_2 + emotion_style_loss
+        """
+
+        mel_masks, src_masks = predictions["mel_masks"], predictions["src_masks"]
+        pitch_targets, pitch_predictions = inputs["pitches"], predictions["p_preds"]
+        energy_targets, energy_predictions = inputs["energies"], predictions["e_preds"]
+        duration_targets, log_duration_predictions = inputs["durations"], predictions["d_preds"]
+        mel_targets, mel_predictions = inputs["mels"], predictions["output"]
+        postnet_mel_predictions = predictions["postnet_output"]
 
         src_masks = ~src_masks
         mel_masks = ~mel_masks
@@ -100,57 +112,10 @@ class FastSpeech2Loss(nn.Module):
         log_duration_targets = log_duration_targets.masked_select(src_masks)
 
         mel_predictions = mel_predictions.masked_select(mel_masks.unsqueeze(-1))
-        postnet_mel_predictions = postnet_mel_predictions.masked_select(
-            mel_masks.unsqueeze(-1)
-        )
+        postnet_mel_predictions = postnet_mel_predictions.masked_select(mel_masks.unsqueeze(-1))
         mel_targets = mel_targets.masked_select(mel_masks.unsqueeze(-1))
 
-        Loss = dict()
-
-        speaker_loss_1, speaker_loss_2 = torch.tensor(0.), torch.tensor(0.)
-        emotion_loss_1, emotion_loss_2 = torch.tensor(0.), torch.tensor(0.)
-        emotion_loss_1_revgrad, emotion_loss_2_revgrad = torch.tensor(0.), torch.tensor(0.)
-        speaker_emotion_loss_1, speaker_emotion_loss_2 = torch.tensor(0.), torch.tensor(0.)
-        emotion_style_loss = torch.tensor(0.)
-
-        # emotion_targets = F.one_hot(emotions, num_classes=self.emotion_num).float()
-        # speaker_targets = F.one_hot(speakers, num_classes=self.speaker_num).float()
-        emotion_targets = emotions
-        speaker_targets = speakers
-        # print(emotion_targets.shape)
-        # print(emotion_classifier_1_output.shape)
-
-        if self.model_config["Encoder_config"]["use_speaker"]:
-            Loss["speaker_loss_1"] = self.ce_loss(speaker_classifier_1_output, speaker_targets)
-        if self.model_config["Decoder_config"]["use_speaker"]:
-            Loss["speaker_loss_2"] = self.ce_loss(speaker_classifier_2_output, speaker_targets)
-
-        if self.model_config["Encoder_config"]["use_emotion"]:
-            Loss["emotion_loss_1"] = self.ce_loss(emotion_classifier_1_output, emotion_targets)
-        if self.model_config["Decoder_config"]["use_emotion"]:
-            Loss["emotion_loss_2"] = self.ce_loss(emotion_classifier_2_output, emotion_targets)
-
-        # print(emotion_loss_1.shape)
-        # print(emotion_loss_1)
-
-        if self.model_config["Encoder_config"]["use_revgrad"]:
-            Loss["emotion_loss_1_revgrad"] = self.ce_loss(emotion_classifier_1_revgrad_output, emotion_targets)
-        if self.model_config["Decoder_config"]["use_revgrad"]:
-            Loss["emotion_loss_2_revgrad"] = self.ce_loss(emotion_classifier_2_revgrad_output, emotion_targets)
-
-        if self.model_config["Loss_config"]["use_orthogonal_loss"]:
-            Loss["speaker_emotion_loss_1"] = self.ort_loss(speaker_emb_1, emotion_emb_1)
-            Loss["speaker_emotion_loss_2"] = self.ort_loss(speaker_emb_2, emotion_emb_2)
-
-        if self.model_config["Loss_config"]["use_style_loss"]:
-            Loss["emotion_style_loss"] = self.style_loss(emotion_emb_1, emotion_emb_2)
-
-        Loss["loss_1"] = (
-            speaker_loss_1 + emotion_loss_1 + speaker_emotion_loss_1 + emotion_loss_1_revgrad
-        )
-        Loss["loss_2"] = (
-            speaker_loss_2 + emotion_loss_2 + speaker_emotion_loss_2 + emotion_loss_2_revgrad
-        )
+        Loss = defaultdict(lambda: torch.tensor(0.))
 
         Loss["mel_loss"] = self.mae_loss(mel_predictions, mel_targets)
         Loss["postnet_mel_loss"] = self.mae_loss(postnet_mel_predictions, mel_targets)
@@ -159,30 +124,86 @@ class FastSpeech2Loss(nn.Module):
         Loss["energy_loss"] = self.mse_loss(energy_predictions, energy_targets)
         Loss["duration_loss"] = self.mse_loss(log_duration_predictions, log_duration_targets)
 
-        Loss["all_loss"] = Loss["mel_loss"] + Loss["postnet_mel_loss"] + Loss["pitch_loss"] + Loss["energy_loss"]
+        if self.Encoder_config["use_speaker"]:
+            if self.Encoder_config["use_speaker_classifier"]:
+                spk_cls_1_output, speakers = predictions["spk_cls_1_output"], inputs["speakers"]
+                assert spk_cls_1_output is not None and speakers is not None
+                Loss["speaker_loss_1"] = self.ce_loss(spk_cls_1_output, speakers)
 
-        Loss["total_loss"] = Loss["all_loss"] + Loss["loss_1"] + Loss["loss_2"] + Loss["emotion_style_loss"]
-                
+        if self.Decoder_config["use_speaker"]:
+            if self.Decoder_config["use_speaker_classifier"]:
+                spk_cls_2_output, speakers = predictions["spk_cls_2_output"], inputs["speakers"]
+                assert spk_cls_2_output is not None and speakers is not None
+                Loss["speaker_loss_2"] = self.ce_loss(spk_cls_2_output, speakers)
+
+        if self.Encoder_config["use_emotion"]:
+            if self.Encoder_config["use_emotion_classifier"]:
+                emo_cls_1_output, emotions = predictions["emo_cls_1_output"], inputs["emotions"]
+                assert emo_cls_1_output is not None and emotions is not None
+                Loss["emotion_loss_1"] = self.ce_loss(emo_cls_1_output, emotions)
+
+        if self.Decoder_config["use_emotion"]:
+            if self.Decoder_config["use_emotion_classifier"]:
+                emo_cls_2_output, emotions = predictions["emo_cls_2_output"], inputs["emotions"]
+                assert emo_cls_2_output is not None and emotions is not None
+                Loss["emotion_loss_2"] = self.ce_loss(emo_cls_2_output, emotions)
+
+        if self.Encoder_config["use_speaker"] and self.Encoder_config["use_emotion"]:
+            if self.Encoder_config["use_revgrad"]:
+                emo_cls_1_rev_output, speakers = predictions["emo_cls_1_rev_output"], inputs["speakers"]
+                assert emo_cls_1_rev_output is not None and speakers is not None
+                Loss["emotion_loss_1_revgrad"] = self.ce_loss(emo_cls_1_rev_output, speakers)
+
+            if self.Encoder_config["use_orthogonal_loss"]:
+                spk_emb_1, emo_emb_1 = predictions["spk_emb_1"], predictions["emo_emb_1"]
+                assert spk_emb_1 is not None and emo_emb_1 is not None
+                Loss["speaker_emotion_loss_1"] = self.ort_loss(spk_emb_1, emo_emb_1)
+
+        if self.Decoder_config["use_speaker"] and self.Decoder_config["use_emotion"]:
+            if self.Decoder_config["use_revgrad"]:
+                emo_cls_2_rev_output, speakers = predictions["emo_cls_2_rev_output"], inputs["speakers"]
+                assert emo_cls_2_rev_output is not None and speakers is not None
+                Loss["emotion_loss_2_revgrad"] = self.ce_loss(emo_cls_2_rev_output, speakers)
+
+            if self.Decoder_config["use_orthogonal_loss"]:
+                spk_emb_2, emo_emb_2 = predictions["spk_emb_2"], predictions["emo_emb_2"]
+                assert spk_emb_2 is not None and emo_emb_2 is not None
+                Loss["speaker_emotion_loss_2"] = self.ort_loss(spk_emb_2, emo_emb_2)
+
+        if self.Loss_config["use_style_loss"]:
+            if self.Encoder_config["use_emotion"] and self.Decoder_config["use_emotion"]:                
+                emo_emb_1, emo_emb_2 = predictions["emo_emb_1"], predictions["emo_emb_2"]
+                assert emo_emb_1 is not None and emo_emb_2 is not None
+                Loss["emotion_style_loss"] = self.style_loss(emo_emb_1, emo_emb_2)
+
+
+        Loss["loss_1"] = (
+            Loss["speaker_loss_1"] +
+            Loss["emotion_loss_1"] +
+            Loss["speaker_emotion_loss_1"] +
+            Loss["emotion_loss_1_revgrad"]
+        )
+
+        Loss["loss_2"] = (
+            Loss["speaker_loss_2"] +
+            Loss["emotion_loss_2"] +
+            Loss["speaker_emotion_loss_2"] +
+            Loss["emotion_loss_2_revgrad"]
+        )
+
+        Loss["all_loss"] = (
+            Loss["mel_loss"] +
+            Loss["postnet_mel_loss"] +
+            Loss["pitch_loss"] +
+            Loss["energy_loss"] +
+            Loss["duration_loss"]
+        )
+
+        Loss["total_loss"] = (
+            Loss["all_loss"] +
+            Loss["loss_1"] +
+            Loss["loss_2"] +
+            Loss["emotion_style_loss"]
+        )
 
         return Loss
-
-        # return (
-        #     total_loss,
-        #     mel_loss,
-        #     postnet_mel_loss,
-        #     pitch_loss,
-        #     energy_loss,
-        #     duration_loss,
-        #     speaker_loss_1,
-        #     speaker_loss_2,
-        #     emotion_loss_1,
-        #     emotion_loss_2,
-        #     emotion_loss_1_revgrad,
-        #     emotion_loss_2_revgrad,
-        #     speaker_emotion_loss_1,
-        #     speaker_emotion_loss_2,
-        #     emotion_style_loss,
-        #     loss_1,
-        #     loss_2,
-        #     all_loss,
-        # )

@@ -51,16 +51,17 @@ gst:
   attn_head: 4
 
 speaker_embedding:
-  pretrained_model:
-    ECAPA-TDNN:
-      pretrained_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/speaker_model/pretrained_models/spkrec-ecapa-voxceleb/embedding_model.ckpt"
-      config_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/speaker_model/pretrained_models/spkrec-ecapa-voxceleb/hyperparams_simple.yaml"
-      type: "mel"
-      speaker_dim: 192
-    DeepSpeaker:
-      pretrained_path: "./deepspeaker/pretrained_models/ResCNN_triplet_training_checkpoint_265.h5"
-      speaker_dim: 512
-  
+    embedder_type: "ECAPA-TDNN" # support 'embedding' or 'ECAPA-TDNN' or 'DeepSpeaker'
+    pretrained_model:
+      ECAPA-TDNN:
+        pretrained_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/speaker_model/pretrained_models/spkrec-ecapa-voxceleb/embedding_model.ckpt"
+        config_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/speaker_model/pretrained_models/spkrec-ecapa-voxceleb/hyperparams_simple.yaml"
+        type: "mel"
+        speaker_dim: 192
+      DeepSpeaker:
+        pretrained_path: "./deepspeaker/pretrained_models/ResCNN_triplet_training_checkpoint_265.h5"
+        speaker_dim: 512
+    
 emotion_token_layer:
   ref_enc_filters: [32, 32, 64, 64, 128, 128]
   ref_enc_size: [3, 3]
@@ -80,30 +81,31 @@ emotion_classifier:
   hidden_size: 256
 
 Encoder_config:
-  use_speaker: False
-  use_emotion: False
-  use_speaker_classifier: False
-  use_emotion_classifier: False
-  # use_vae: False # not implemented yet
-  use_gst: False
-  use_revgrad: False
+  use_speaker: True # emb
+  use_emotion: True # emb
+  use_speaker_classifier: True 
+  use_emotion_classifier: True
+  # use_vae: True # not implemented yet
+  use_gst: True
+  use_revgrad: True
+  use_orthogonal_loss: True
 
 Decoder_config:
-  use_speaker: False
-  use_emotion: False
-  use_speaker_classifier: False
-  use_emotion_classifier: False
-  # use_vae: False
-  use_gst: False
-  use_revgrad: False
+  use_speaker: True
+  use_emotion: True
+  use_speaker_classifier: True
+  use_emotion_classifier: True
+  # use_vae: True
+  use_gst: True
+  use_revgrad: True
+  use_orthogonal_loss: True
 
 Loss_config:
-  use_orthogonal_loss: False
-  use_style_loss: False
+  use_style_loss: True
 
-multi_speaker: False
+multi_speaker: True
 
-multi_emotion: False
+multi_emotion: True
 
 max_seq_len: 1000
 

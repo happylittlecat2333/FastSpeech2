@@ -1,14 +1,24 @@
+import re
 import os
 import json
+from string import punctuation
+from text import text_to_sequence
+from g2p_en import G2p
+from pypinyin import pinyin, Style
 
 import torch
 import torch.nn.functional as F
 import numpy as np
 import matplotlib
+import librosa
 from scipy.io import wavfile
 from scipy.interpolate import interp1d
 from matplotlib import pyplot as plt
 from sklearn.manifold import TSNE
+from sklearn.preprocessing import MinMaxScaler
+import pandas as pd
+import seaborn as sns
+import audio as Audio
 
 matplotlib.use("Agg")
 
@@ -75,60 +85,32 @@ def get_phoneme_level_energy(duration, energy):
 
 
 def to_device(data, device):
-    if len(data) == 13:
-        (
-            ids,
-            raw_texts,
-            speakers,
-            emotions,
-            texts,
-            src_lens,
-            max_src_len,
-            mels,
-            mel_lens,
-            max_mel_len,
-            pitches,
-            energies,
-            durations,
-        ) = data
 
-        speakers = torch.from_numpy(speakers).long().to(device)
-        emotions = torch.from_numpy(emotions).long().to(device)
-        texts = torch.from_numpy(texts).long().to(device)
-        src_lens = torch.from_numpy(src_lens).to(device)
-        mels = torch.from_numpy(mels).float().to(device)
-        mel_lens = torch.from_numpy(mel_lens).to(device)
-        pitches = torch.from_numpy(pitches).float().to(device)
-        energies = torch.from_numpy(energies).to(device)
-        durations = torch.from_numpy(durations).long().to(device)
+    if data["speakers"] is not None:
+        data["speakers"] = torch.from_numpy(data["speakers"]).long().to(device)
+    if data["emotions"] is not None:
+        data["emotions"] = torch.from_numpy(data["emotions"]).long().to(device)
+    if data["texts"] is not None:
+        data["texts"] = torch.from_numpy(data["texts"]).long().to(device)
+    if data["src_lens"] is not None:
+        data["src_lens"] = torch.from_numpy(data["src_lens"]).to(device)
+    if data["mels"] is not None:
+        data["mels"] = torch.from_numpy(data["mels"]).float().to(device)
+    if data["mel_lens"] is not None:
+        data["mel_lens"] = torch.from_numpy(data["mel_lens"]).to(device)
+    if data["pitches"] is not None:
+        data["pitches"] = torch.from_numpy(data["pitches"]).float().to(device)
+    if data["energies"] is not None:
+        data["energies"] = torch.from_numpy(data["energies"]).float().to(device)
+    if data["durations"] is not None:
+        data["durations"] = torch.from_numpy(data["durations"]).long().to(device)
+    if data["spker_embeds"] is not None:
+        data["spker_embeds"] = torch.from_numpy(data["spker_embeds"]).float().to(device)
 
-        return (
-            ids,
-            raw_texts,
-            speakers,
-            emotions,
-            texts,
-            src_lens,
-            max_src_len,
-            mels,
-            mel_lens,
-            max_mel_len,
-            pitches,
-            energies,
-            durations,
-        )
+    return data
 
-    if len(data) == 7:
-        (ids, raw_texts, speakers, emotions, texts, src_lens, max_src_len) = data
 
-        speakers = torch.from_numpy(speakers).long().to(device)
-        emotions = torch.from_numpy(emotions).long().to(device)
-        texts = torch.from_numpy(texts).long().to(device)
-        src_lens = torch.from_numpy(src_lens).to(device)
-
-        return (ids, raw_texts, speakers, emotions, texts, src_lens, max_src_len)
-
-def loss_list_to_dict(loss_list):
+def loss_dict(loss_list):
     loss_dict = {}
     loss_name = [
         "Total Loss",
@@ -160,32 +142,84 @@ def loss_list_to_dict(loss_list):
     return loss_dict
 
 
+def get_audio(preprocess_config, wav_path):
+
+    sampling_rate = preprocess_config["preprocessing"]["audio"]["sampling_rate"]
+    STFT = Audio.stft.TacotronSTFT(
+        preprocess_config["preprocessing"]["stft"]["filter_length"],
+        preprocess_config["preprocessing"]["stft"]["hop_length"],
+        preprocess_config["preprocessing"]["stft"]["win_length"],
+        preprocess_config["preprocessing"]["mel"]["n_mel_channels"],
+        preprocess_config["preprocessing"]["audio"]["sampling_rate"],
+        preprocess_config["preprocessing"]["mel"]["mel_fmin"],
+        preprocess_config["preprocessing"]["mel"]["mel_fmax"],
+    )
+
+    # Read and trim wav files
+    wav, _ = librosa.load(wav_path, sampling_rate).astype(np.float32)
+
+    # Compute mel-scale spectrogram
+    mel_spectrogram, _ = Audio.tools.get_mel_from_wav(wav, STFT)
+    mels = mel_spectrogram.T.astype(np.float32)
+
+    return mels
+
+
+def read_lexicon(lex_path):
+    lexicon = {}
+    with open(lex_path) as f:
+        for line in f:
+            temp = re.split(r"\s+", line.strip("\n"))
+            word = temp[0]
+            phones = temp[1:]
+            if word.lower() not in lexicon:
+                lexicon[word.lower()] = phones
+    return lexicon
+
+
+def preprocess_raw_text(text, preprocess_config, lang="en"):
+    if lang == "en":
+        text = text.rstrip(punctuation)
+        lexicon = read_lexicon(preprocess_config["path"]["lexicon_path"])
+
+        g2p = G2p()
+        phones = []
+        words = re.split(r"([,;.\-\?\!\s+])", text)
+        for w in words:
+            if w.lower() in lexicon:
+                phones += lexicon[w.lower()]
+            else:
+                phones += list(filter(lambda p: p != " ", g2p(w)))
+        phones = "{" + "}{".join(phones) + "}"
+        phones = re.sub(r"\{[^\w\s]?\}", "{sp}", phones)
+        phones = phones.replace("}{", " ")
+
+    elif lang == "zh":
+        lexicon = read_lexicon(preprocess_config["path"]["lexicon_path"])
+        phones = []
+        pinyins = [p[0] for p in pinyin(text, style=Style.TONE3, strict=False, neutral_tone_with_five=True)]
+        for p in pinyins:
+            if p in lexicon:
+                phones += lexicon[p]
+            else:
+                phones.append("sp")
+
+    phones = "{" + " ".join(phones) + "}"
+    print("Raw Text Sequence: {}".format(text))
+    print("Phoneme Sequence: {}".format(phones))
+    sequence = np.array(text_to_sequence(phones, preprocess_config["preprocessing"]["text"]["text_cleaners"]))
+
+    return np.array(sequence)
+
+
 
 def log(
     logger, step=None, losses=None, fig=None, audio=None, sampling_rate=22050, tag=""
 ):
     if losses is not None:
         for k, v in losses.items():
-            logger.add_scalar("Loss/{}".format(k), v, step)
-        # logger.add_scalar("Loss/total_loss", losses[0], step)
-        # logger.add_scalar("Loss/mel_loss", losses[1], step)
-        # logger.add_scalar("Loss/mel_postnet_loss", losses[2], step)
-        # logger.add_scalar("Loss/pitch_loss", losses[3], step)
-        # logger.add_scalar("Loss/energy_loss", losses[4], step)
-        # logger.add_scalar("Loss/duration_loss", losses[5], step)
-        # logger.add_scalar("Loss/speaker_loss_1", losses[6], step)
-        # logger.add_scalar("Loss/speaker_loss_2", losses[7], step)
-        # logger.add_scalar("Loss/emotion_loss_1", losses[8], step)
-        # logger.add_scalar("Loss/emotion_loss_2", losses[9], step)
-        # logger.add_scalar("Loss/emotion_loss_1_revgrad", losses[10], step)
-        # logger.add_scalar("Loss/emotion_loss_2_revgrad", losses[11], step)
-        # logger.add_scalar("Loss/speaker_emotion_loss_1", losses[12], step)
-        # logger.add_scalar("Loss/speaker_emotion_loss_2", losses[13], step)
-        # logger.add_scalar("Loss/emotion_style_loss", losses[14], step)
-        # logger.add_scalar("Loss/loss_1", losses[15], step)
-        # logger.add_scalar("Loss/loss_2", losses[16], step)
-        # logger.add_scalar("Loss/all_loss", losses[17], step)
-
+            if v:
+                logger.add_scalar("Loss/{}".format(k), v, step)
 
     if fig is not None:
         logger.add_figure(tag, fig)
@@ -220,25 +254,24 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
 
     pitch_level_tag, energy_level_tag, *_ = get_variance_level(preprocess_config, model_config)
 
-    basename = targets[0][idx]
-    src_len = predictions[8][idx].item()
-    mel_len = predictions[9][idx].item()
-    mel_target = targets[7][idx, :mel_len].detach().transpose(0, 1)
-    mel_prediction = predictions[1][idx, :mel_len].detach().transpose(0, 1)
-    # duration = targets[12][index, :src_len].detach().cpu().numpy()
-    duration = predictions[5][idx, :src_len].detach().cpu().numpy()
+    basename = targets["ids"][idx]
+    src_len = predictions["src_lens"][idx].item()
+    mel_len = predictions["mel_lens"][idx].item()
+    mel_target = targets["mels"][idx, :mel_len].detach().transpose(0, 1)
+    mel_prediction = predictions["postnet_output"][idx, :mel_len].detach().transpose(0, 1)
+    duration = predictions["d_preds"][idx, :src_len].detach().cpu().numpy()
 
     if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
-        pitch = targets[10][idx, :src_len].detach().cpu().numpy()
+        pitch = targets["pitches"][idx, :src_len].detach().cpu().numpy()
         pitch = expand(pitch, duration)
     else:
-        pitch = targets[10][idx, :mel_len].detach().cpu().numpy()
+        pitch = targets["pitches"][idx, :mel_len].detach().cpu().numpy()
 
     if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
-        energy = targets[11][idx, :src_len].detach().cpu().numpy()
+        energy = targets["energies"][idx, :src_len].detach().cpu().numpy()
         energy = expand(energy, duration)
     else:
-        energy = targets[11][idx, :mel_len].detach().cpu().numpy()
+        energy = targets["energies"][idx, :mel_len].detach().cpu().numpy()
 
     with open(
         os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
@@ -278,23 +311,24 @@ def synth_one_sample(targets, predictions, vocoder, model_config, preprocess_con
 
 def synth_samples(targets, predictions, vocoder, model_config, preprocess_config, path, args):
 
-    basenames = targets[0]
+    basenames = targets["ids"]
     for i in range(len(predictions[0])):
         basename = basenames[i]
-        src_len = predictions[8][i].item()
-        mel_len = predictions[9][i].item()
-        mel_prediction = predictions[1][i, :mel_len].detach().transpose(0, 1)
-        duration = predictions[5][i, :src_len].detach().cpu().numpy()
+        src_len = predictions["src_lens"][i].item()
+        mel_len = predictions["mel_lens"][i].item()
+        mel_prediction = predictions["postnet_output"][i, :mel_len].detach().transpose(0, 1)
+        duration = predictions["d_preds"][i, :src_len].detach().cpu().numpy()
+
         if preprocess_config["preprocessing"]["pitch"]["feature"] == "phoneme_level":
-            pitch = predictions[2][i, :src_len].detach().cpu().numpy()
+            pitch = predictions["p_preds"][i, :src_len].detach().cpu().numpy()
             pitch = expand(pitch, duration)
         else:
-            pitch = predictions[2][i, :mel_len].detach().cpu().numpy()
+            pitch = predictions["p_preds"][i, :mel_len].detach().cpu().numpy()
         if preprocess_config["preprocessing"]["energy"]["feature"] == "phoneme_level":
-            energy = predictions[3][i, :src_len].detach().cpu().numpy()
+            energy = predictions["e_preds"][i, :src_len].detach().cpu().numpy()
             energy = expand(energy, duration)
         else:
-            energy = predictions[3][i, :mel_len].detach().cpu().numpy()
+            energy = predictions["e_preds"][i, :mel_len].detach().cpu().numpy()
 
         with open(
             os.path.join(preprocess_config["path"]["preprocessed_path"], "stats.json")
@@ -316,8 +350,8 @@ def synth_samples(targets, predictions, vocoder, model_config, preprocess_config
 
     from .model import vocoder_infer
 
-    mel_predictions = predictions[1].transpose(1, 2)
-    lengths = predictions[9] * preprocess_config["preprocessing"]["stft"]["hop_length"]
+    mel_predictions = predictions["postnet_output"].transpose(1, 2)
+    lengths = predictions["mel_lens"] * preprocess_config["preprocessing"]["stft"]["hop_length"]
     wav_predictions = vocoder_infer(
         mel_predictions, vocoder, model_config, preprocess_config, lengths=lengths
     )
@@ -474,30 +508,33 @@ def plot_alignment(data, titles=None, save_dir=None):
     return data
 
 
-def plot_embedding(out_dir, embedding, embedding_speaker_id, gender_dict, filename='embedding.png'):
-    colors = 'r', 'b'
-    labels = 'Female', 'Male'
+def plot_embedding(out_dir, spker_embed_dict, filename='embedding.png'):
 
-    data_x = embedding
-    data_y = np.array([gender_dict[spk_id] == 'M' for spk_id in embedding_speaker_id], dtype=np.int)
-    tsne_model = TSNE(n_components=2, random_state=0, init='random')
-    tsne_all_data = tsne_model.fit_transform(data_x)
-    tsne_all_y_data = data_y
+    Y, X = [], []
+    for spk, emb in spker_embed_dict.items():
+        for idx in range(len(emb)):
+            Y.append(spk)
+            X.append(emb[idx])
 
-    plt.figure(figsize=(10, 10))
-    for i, (c, label) in enumerate(zip(colors, labels)):
-        plt.scatter(tsne_all_data[tsne_all_y_data == i, 0],
-                    tsne_all_data[tsne_all_y_data == i, 1],
-                    c=c,
-                    label=label,
-                    alpha=0.5)
+    tsne_model = TSNE(n_components=2, random_state=0, init="pca", n_jobs=-1)
+    X_tsne = tsne_model.fit_transform(X)
+    X = np.array(X_tsne)
+    x_min, x_max = np.min(X, 0), np.max(X, 0)
+    X_norm = (X - x_min) / (x_max - x_min)
 
-    plt.grid(True)
-    plt.legend(loc='upper left')
-
-    plt.tight_layout()
+    df = pd.DataFrame(dict(Feature_1=X_norm[:, 0], Feature_2=X_norm[:, 1], label=Y))
+    plt.figure(figsize=(10, 8))
+    sns.scatterplot(
+        x="Feature_1", y="Feature_2",
+        hue="label",
+        palette=sns.color_palette("hls", len(spker_embed_dict)),
+        data=df,
+        legend="full",
+    )
     plt.savefig(os.path.join(out_dir, filename))
     plt.close()
+
+
 
 
 def save_figure_to_numpy(fig):

@@ -5,7 +5,7 @@ path:
   lexicon_path: "lexicon/librispeech-lexicon.txt"
   raw_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/raw_data/EmovDB_v2"
   # preprocessed_path: "./preprocessed_data/LibriTTS"
-  preprocessed_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/preprocessed_data/EmovDB_v3"
+  preprocessed_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/preprocessed_data/EmovDB_v4"
 
 preprocessing:
   speaker_embedder: "ECAPA-TDNN"
@@ -24,7 +24,8 @@ preprocessing:
     n_mel_channels: 80
     mel_fmin: 0
     mel_fmax: 8000 # please set to 8000 for HiFi-GAN vocoder, set to null for MelGAN vocoder
-    normalization: True
+    # normalization: True
+    normalization: False
   pitch:
     feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
     normalization: True

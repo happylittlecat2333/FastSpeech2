@@ -1,11 +1,11 @@
-dataset: "LJSpeech"
+dataset: "EmovDB"
 
 path:
-  # corpus_path: "/home/ming/Data/LJSpeech-1.1"
-  corpus_path: "/home/samba/public/Datasets/Speech/LJspeech/LJSpeech-1.1"
+  corpus_path: "/home/samba/public/Datasets/emotion/EmoV-DB"
   lexicon_path: "lexicon/librispeech-lexicon.txt"
-  raw_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/raw_data/LJSpeech_v2"
-  preprocessed_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/preprocessed_data/LJSpeech_v3"
+  raw_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/raw_data/EmovDB_v2"
+  # preprocessed_path: "./preprocessed_data/LibriTTS"
+  preprocessed_path: "/home/xjl/Audio/Library/Models/MyFastSpeech2/preprocessed_data/EmovDB_v4"
 
 preprocessing:
   speaker_embedder: "ECAPA-TDNN"
@@ -24,8 +24,7 @@ preprocessing:
     n_mel_channels: 80
     mel_fmin: 0
     mel_fmax: 8000 # please set to 8000 for HiFi-GAN vocoder, set to null for MelGAN vocoder
-    # normalization: True
-    normalization: False
+    normalization: True
   pitch:
     feature: "phoneme_level" # support 'phoneme_level' or 'frame_level'
     normalization: True
@@ -34,3 +33,5 @@ preprocessing:
     normalization: True
   duration:
     beta_binomial_scaling_factor: 1.0
+
+

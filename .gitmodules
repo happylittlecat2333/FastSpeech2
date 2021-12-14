@@ -1,0 +1,3 @@
+[submodule "hifi-gan"]
+	path = hifi-gan
+	url = git@github.com:happylittlecat2333/hifi-gan.git

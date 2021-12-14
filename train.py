@@ -14,8 +14,8 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from utils.model import get_model, get_vocoder, get_param_num
-from utils.tools import to_device, log, synth_one_sample, loss_list_to_dict
-from model import FastSpeech2Loss, loss
+from utils.tools import to_device, log, synth_one_sample, loss_dict
+from model.loss import FastSpeech2Loss
 from dataset import Dataset
 
 from evaluate import evaluate
@@ -64,7 +64,6 @@ def main(rank, args, configs, batch_size, num_gpus):
     scaler = amp.GradScaler(enabled=args.use_amp)
     Loss = FastSpeech2Loss(preprocess_config, model_config).to(device)
 
-    # print("rank:", rank, "device:", device, "model_device:", next(model.parameters()).device, "batch_size:", batch_size)
 
     # Load vocoder
     vocoder = get_vocoder(model_config, device)
@@ -96,6 +95,9 @@ def main(rank, args, configs, batch_size, num_gpus):
         outer_bar.n = args.restore_step
         outer_bar.update()
 
+    for k,v in model.named_parameters():
+        print(k,v.shape)
+
     train = True
     while train:
         if rank == 0:
@@ -110,15 +112,13 @@ def main(rank, args, configs, batch_size, num_gpus):
 
                 with amp.autocast(args.use_amp):
                     # Forward
-                    # output = model(*(batch[2:]), step=step)
-                    # batch[9:11], output = output[-2:], output[:-2] # Update pitch and energy level
-                    output = model(*(batch[2:]))
+                    output = model(batch)
 
 
                     # Cal Loss
                     # losses = Loss(batch, output, step=step)
                     losses = Loss(batch, output)
-                    total_loss = losses[0]
+                    total_loss = losses["total_loss"]
                     total_loss = total_loss / grad_acc_step
 
                 # Backward
@@ -136,11 +136,9 @@ def main(rank, args, configs, batch_size, num_gpus):
 
                 if rank == 0:
                     if step % log_step == 0:
-                        losses = [l.item() for l in losses]
                         message1 = "Step {}/{}, ".format(step, total_step)
-                        loss_dict = loss_list_to_dict(losses)
                         message2 = ", ".join(
-                            ["{}: {:.4f}".format(k, v) for k, v in loss_dict.items()]
+                            ["{}: {:.4f}".format(k, v) for k, v in losses.items() if v]
                         )
 
                         with open(os.path.join(train_log_path, "log.txt"), "a") as f:
@@ -148,7 +146,7 @@ def main(rank, args, configs, batch_size, num_gpus):
 
                         outer_bar.write(message1 + message2)
 
-                        log(train_logger, step, losses=loss_dict)
+                        log(train_logger, step, losses=losses)
 
                     if step % synth_step == 0:
                         for index in random.sample(range(0, len(batch)-1), 6):

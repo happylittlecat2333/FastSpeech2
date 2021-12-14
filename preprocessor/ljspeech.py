@@ -37,8 +37,8 @@ def prepare_align(config):
                 wav = wav / max(abs(wav)) * max_wav_value
                 wavfile.write(
                     os.path.join(out_dir, speaker, "{}_{}_{}.wav".format(speaker, emotion, base_name)),
-                    sampling_rate,
-                    wav.astype(np.int16),
+                    sampling_rate,  # librosa auto normalize, so we upsample to max_wav_value=2**16, and save as np.int16
+                    wav.astype(np.int16),  # actually, librosa(wav) / max(abs()) * max_wav_value = wavfile.read(wav)
                 )
                 with open(
                     os.path.join(out_dir, speaker, "{}_{}_{}.lab".format(speaker, emotion, base_name)),

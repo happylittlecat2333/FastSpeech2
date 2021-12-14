@@ -1,87 +1,20 @@
-import re
+import os
+import json
 import argparse
-from string import punctuation
 
 import torch
 import yaml
 import numpy as np
 from torch.utils.data import DataLoader
-from g2p_en import G2p
-from pypinyin import pinyin, Style
+
 
 from utils.model import get_model, get_vocoder
-from utils.tools import to_device, synth_samples
+from utils.tools import to_device, synth_samples, get_audio, preprocess_raw_text
 from dataset import TextDataset
-from text import text_to_sequence
+from collections import defaultdict
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-def read_lexicon(lex_path):
-    lexicon = {}
-    with open(lex_path) as f:
-        for line in f:
-            temp = re.split(r"\s+", line.strip("\n"))
-            word = temp[0]
-            phones = temp[1:]
-            if word.lower() not in lexicon:
-                lexicon[word.lower()] = phones
-    return lexicon
-
-
-def preprocess_english(text, preprocess_config):
-    text = text.rstrip(punctuation)
-    lexicon = read_lexicon(preprocess_config["path"]["lexicon_path"])
-
-    g2p = G2p()
-    phones = []
-    words = re.split(r"([,;.\-\?\!\s+])", text)
-    for w in words:
-        if w.lower() in lexicon:
-            phones += lexicon[w.lower()]
-        else:
-            phones += list(filter(lambda p: p != " ", g2p(w)))
-    phones = "{" + "}{".join(phones) + "}"
-    phones = re.sub(r"\{[^\w\s]?\}", "{sp}", phones)
-    phones = phones.replace("}{", " ")
-
-    print("Raw Text Sequence: {}".format(text))
-    print("Phoneme Sequence: {}".format(phones))
-    sequence = np.array(
-        text_to_sequence(
-            phones, preprocess_config["preprocessing"]["text"]["text_cleaners"]
-        )
-    )
-
-    return np.array(sequence)
-
-
-def preprocess_mandarin(text, preprocess_config):
-    lexicon = read_lexicon(preprocess_config["path"]["lexicon_path"])
-
-    phones = []
-    pinyins = [
-        p[0]
-        for p in pinyin(
-            text, style=Style.TONE3, strict=False, neutral_tone_with_five=True
-        )
-    ]
-    for p in pinyins:
-        if p in lexicon:
-            phones += lexicon[p]
-        else:
-            phones.append("sp")
-
-    phones = "{" + " ".join(phones) + "}"
-    print("Raw Text Sequence: {}".format(text))
-    print("Phoneme Sequence: {}".format(phones))
-    sequence = np.array(
-        text_to_sequence(
-            phones, preprocess_config["preprocessing"]["text"]["text_cleaners"]
-        )
-    )
-
-    return np.array(sequence)
 
 
 def synthesize(model, step, configs, vocoder, batchs, control_values, args):
@@ -93,7 +26,7 @@ def synthesize(model, step, configs, vocoder, batchs, control_values, args):
         with torch.no_grad():
             # Forward
             output = model(
-                *(batch[2:]),
+                batch,
                 p_control=pitch_control,
                 e_control=energy_control,
                 d_control=duration_control
@@ -112,7 +45,11 @@ def synthesize(model, step, configs, vocoder, batchs, control_values, args):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--restore_step", type=int, required=True)
+    parser.add_argument(
+        "--restore_step",
+        type=int,
+        required=True,
+    )
     parser.add_argument(
         "--mode",
         type=str,
@@ -145,18 +82,12 @@ if __name__ == "__main__":
         help="emotion ID for multi-emotion synthesis, for single-sentence mode only",
     )
     parser.add_argument(
-        "-p",
-        "--preprocess_config",
+        "--ref_audio",
         type=str,
-        required=True,
-        help="path to preprocess.yaml",
+        default=None,
+        help="reference audio path to extract the speech style, for single-sentence mode only",
     )
-    parser.add_argument(
-        "-m", "--model_config", type=str, required=True, help="path to model.yaml"
-    )
-    parser.add_argument(
-        "-t", "--train_config", type=str, required=True, help="path to train.yaml"
-    )
+
     parser.add_argument(
         "--pitch_control",
         type=float,
@@ -175,6 +106,15 @@ if __name__ == "__main__":
         default=1.0,
         help="control the speed of the whole utterance, larger value for slower speaking rate",
     )
+    parser.add_argument(
+        "-p", "--preprocess_config", type=str, required=True, help="path to preprocess.yaml"
+    )
+    parser.add_argument(
+        "-m", "--model_config", type=str, required=True, help="path to model.yaml"
+    )
+    parser.add_argument(
+        "-t", "--train_config", type=str, required=True, help="path to train.yaml"
+    )
     args = parser.parse_args()
 
     # Check source texts
@@ -184,9 +124,7 @@ if __name__ == "__main__":
         assert args.source is None and args.text is not None
 
     # Read Config
-    preprocess_config = yaml.load(
-        open(args.preprocess_config, "r"), Loader=yaml.FullLoader
-    )
+    preprocess_config = yaml.load(open(args.preprocess_config, "r"), Loader=yaml.FullLoader)
     model_config = yaml.load(open(args.model_config, "r"), Loader=yaml.FullLoader)
     train_config = yaml.load(open(args.train_config, "r"), Loader=yaml.FullLoader)
     configs = (preprocess_config, model_config, train_config)
@@ -200,25 +138,77 @@ if __name__ == "__main__":
     # Preprocess texts
     if args.mode == "batch":
         # Get dataset
-        dataset = TextDataset(args.source, preprocess_config, model_config)
+        dataset = TextDataset(args.source, preprocess_config, model_config, args)
         batchs = DataLoader(
             dataset,
             batch_size=8,
             collate_fn=dataset.collate_fn,
         )
     if args.mode == "single":
-        ids = raw_texts = [args.text[:100]]
-        speakers = np.array([args.speaker_id])
-        if preprocess_config["preprocessing"]["text"]["language"] == "en":
-            texts = np.array([preprocess_english(args.text, preprocess_config)])
-        elif preprocess_config["preprocessing"]["text"]["language"] == "zh":
-            texts = np.array([preprocess_mandarin(args.text, preprocess_config)])
-        text_lens = np.array([len(texts[0])])
-        batchs = [(ids, raw_texts, speakers, texts, text_lens, max(text_lens))]
+        batchs = defaultdict(lambda: None)
+        batchs["ids"] = batchs["raw_texts"] = [args.text[:100]]
+
+        # Speaker, Emotion Map
+        load_spker_embed = model_config["multi_speaker"] and preprocess_config["preprocessing"]["speaker_embedder"] != 'none'
+        with open(os.path.join(preprocess_config["path"]["preprocessed_path"], "speakers.json")) as f:
+            speaker_map = json.load(f)
+        with open(os.path.join(preprocess_config["path"]["preprocessed_path"], "emotions.json")) as f:
+            emotions_map = json.load(f)
+
+
+        # Speaker, Emotion, Speaker Embedding
+        batchs["speakers"] = np.array([speaker_map[args.speaker_id]])
+        batchs["spker_embeds"] = np.load(
+            os.path.join(
+                preprocess_config["path"]["preprocessed_path"],
+                "spker_embed",
+                preprocess_config["preprocessing"]["speaker_embedder"],
+                "{}-spker_embed.npy".format(args.speaker_id),
+            )) if load_spker_embed else None
+
+        # either use ref_audio or emotion_id
+        assert args.ref_audio ^ args.emotions
+        if args.ref_audio:
+            batchs["mels"] = get_audio(preprocess_config, args.ref_audio)
+            batchs["mel_lens"] = np.array([batchs["mels"].shape[0]])
+            batchs["max_mel_lens"] = max(batchs["mel_lens"])
+        else:
+            batchs["emotions"] = np.array([emotions_map[args.emotion_id]])
+
+        lang = preprocess_config["preprocessing"]["text"]["language"]
+        batchs["texts"] = np.array([preprocess_raw_text(args.text, preprocess_config, lang)])
+
+        batchs["src_lens"] = np.array([len(batchs["texts"][0])])
+        batchs["max_src_len"] = max(batchs["src_lens"])
 
     control_values = args.pitch_control, args.energy_control, args.duration_control
 
     synthesize(model, args.restore_step, configs, vocoder, batchs, control_values)
 
+"""
+BATCH SYNTHESIS:
 
-#  python3 synthesize.py --restore_step 900000 --mode single -p config/EmovDB/preprocess.yaml -m config/EmovDB/model.yaml -t config/EmovDB/train.yaml --speaker_id 1 --text "吃葡萄不吐葡萄皮儿，不吃葡萄倒吐葡萄皮儿。"
+CUDA_VISIBLE_DEVICES=0 python synthesize.py \
+    --restore_step 900000 \
+    --mode batch \
+    --source val.txt \
+    -p  exp/EmovDB/test/config/preprocess.yaml \
+    -m  exp/EmovDB/test/config/model.yaml \
+    -t  exp/EmovDB/test/config/train.yaml \
+
+SINGLE SYNTHESIS:
+
+CUDA_VISIBLE_DEVICES=0 python synthesize.py \
+    --restore_step 900000 \
+    --mode single \
+    --text "I'm so happy to meet you" \
+    --speaker_id 0 \
+    --emotion_id 0  \ or --ref_audio /path/to/audio.wav \
+    --pitch_control 1.0 \
+    --energy_control 1.0 \
+    --duration_control 1.0 \
+    -p  exp/EmovDB/test/config/preprocess.yaml \
+    -m  exp/EmovDB/test/config/model.yaml \
+    -t  exp/EmovDB/test/config/train.yaml \
+
+"""

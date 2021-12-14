@@ -5,7 +5,7 @@ import torch.nn as nn
 import yaml
 
 from speechbrain.lobes.models.ECAPA_TDNN import ECAPA_TDNN
-# from deepspeaker import embedding
+# from speaker_model.deepspeaker import embedding
 
 
 
@@ -34,7 +34,8 @@ class PreDefinedEmbedder(nn.Module):
 
         # if self.embedder_type == "DeepSpeaker":
         #     embedder = embedding.build_model(
-        #         "./deepspeaker/pretrained_models/ResCNN_triplet_training_checkpoint_265.h5"
+        #         # "./deepspeaker/pretrained_models/ResCNN_triplet_training_checkpoint_265.h5"
+        #         self.pretrained_path,
         #     )
 
         else:
@@ -47,7 +48,7 @@ class PreDefinedEmbedder(nn.Module):
             x = torch.squeeze(self.embedder(x.unsqueeze_(0)))
 
         # if self.embedder_type == "DeepSpeaker":
-        #     spker_embed = embedding.predict_embedding(self.embedder, x, self.sampling_rate, self.win_length,
+        #     x = embedding.predict_embedding(self.embedder, x, self.sampling_rate, self.win_length,
         #                                               self.embedder_cuda)
 
         return x

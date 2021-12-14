@@ -7,10 +7,10 @@ path:
   # ckpt_path: "./output/ckpt/LJSpeech"
   # log_path: "./output/log/LJSpeech"
   # result_path: "./output/result/LJSpeech"
-  ckpt_path: "./exp/LJSpeech_v2/baseline/ckpt"
-  log_path: "./exp/LJSpeech_v2/baseline/log"
-  result_path: "./exp/LJSpeech_v2/baseline/result"
-  config_path: "./exp/LJSpeech_v2/baseline/config"
+  ckpt_path: "./exp/LJSpeech_v3/baseline/ckpt"
+  log_path: "./exp/LJSpeech_v3/baseline/log"
+  result_path: "./exp/LJSpeech_v3/baseline/result"
+  config_path: "./exp/LJSpeech_v3/baseline/config"
 optimizer:
   batch_size: 16
   betas: [0.9, 0.98]
@@ -24,6 +24,6 @@ optimizer:
 step:
   total_step: 900000
   log_step: 100
-  synth_step: 1000
+  synth_step: 5000
   val_step: 1000
   save_step: 10000

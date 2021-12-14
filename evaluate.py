@@ -6,10 +6,11 @@ import torch
 import yaml
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from collections import defaultdict
 
 from utils.model import get_model, get_vocoder
-from utils.tools import loss_list_to_dict, to_device, log, synth_one_sample
-from model import FastSpeech2Loss
+from utils.tools import loss_dict, to_device, log, synth_one_sample
+from model.loss import FastSpeech2Loss
 from dataset import Dataset
 
 
@@ -37,34 +38,26 @@ def evaluate(model, step, configs, logger=None, vocoder=None):
     # Evaluation
     # loss_sums = [0 for _ in range(20)]
     model.train()
-    loss_sums = []
+    losses = defaultdict(lambda: torch.tensor(0.))
     for batchs in loader:
         for batch in batchs:
             batch = to_device(batch, device)
             with torch.no_grad():
                 # Forward
-                output = model(*(batch[2:]))
+                output = model(batch)
 
                 # Cal Loss
                 losses = Loss(batch, output)
 
-                for i in range(len(losses)):
-                    if i >= len(loss_sums):
-                        loss_sums.append(0.)
-                    loss_sums[i] += losses[i].item() * len(batch[0])
-                
+                for k, v in losses.items():
+                    losses[k] += v * len(batch["ids"])
 
-    loss_means = [loss_sum / len(dataset) for loss_sum in loss_sums]
-    
+    for k, v in losses.items():
+        losses[k] /= len(dataset)
 
-    loss_dict = loss_list_to_dict(loss_means)
 
-    message = ", ".join(["{}: {:.4f}".format(k, v) for k, v in loss_dict.items()])
+    message = ", ".join(["{}: {:.4f}".format(k, v) for k, v in losses.items() if v])
     message = "Validation Step {}, ".format(step) + message
-
-    # message = "Validation Step {}, Total Loss: {:.4f}, Mel Loss: {:.4f}, Mel PostNet Loss: {:.4f}, Pitch Loss: {:.4f}, Energy Loss: {:.4f}, Duration Loss: {:.4f}".format(
-    #     *([step] + [l for l in loss_means])
-    # )
 
     if logger is not None:
         for index in random.sample(range(0, len(batch)-1), 6):
@@ -77,9 +70,7 @@ def evaluate(model, step, configs, logger=None, vocoder=None):
                 preprocess_config,
                 index,
             )
-
-            # log(logger, step, losses=loss_means)
-            log(logger, step, losses=loss_dict)
+            log(logger, step, losses=losses)
             log(
                 logger,
                 fig=fig,
